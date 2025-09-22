@@ -1,0 +1,60 @@
+{
+  "name": "cordova-plugin-hot-updates",
+  "version": "1.0.0",
+  "description": "Cordova plugin for automatic over-the-air (OTA) hot updates using WebView Reload approach. Enables seamless web content updates without requiring App Store approval.",
+  "main": "www/HotUpdates.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vladimirDarksy/Cordova_hot_update.git"
+  },
+  "keywords": [
+    "cordova",
+    "hot",
+    "updates",
+    "ota",
+    "over-the-air",
+    "webview",
+    "reload",
+    "ecosystem:cordova",
+    "cordova-ios",
+    "mobile",
+    "app"
+  ],
+  "author": {
+    "name": "Mustafin Vladimir",
+    "email": "outvova.gor@gmail.com",
+    "url": "https://github.com/vladimirDarksy"
+  },
+  "license": "Custom Non-Commercial",
+  "bugs": {
+    "url": "https://github.com/vladimirDarksy/Cordova_hot_update/issues"
+  },
+  "homepage": "https://github.com/vladimirDarksy/Cordova_hot_update#readme",
+  "engines": {
+    "cordova": ">=7.0.0"
+  },
+  "cordova": {
+    "id": "cordova-plugin-hot-updates",
+    "platforms": [
+      "ios"
+    ]
+  },
+  "peerDependencies": {
+    "cordova-ios": ">=4.4.0"
+  },
+  "devDependencies": {
+    "cordova": "^12.0.0",
+    "cordova-ios": "^7.0.0"
+  },
+  "files": [
+    "www/",
+    "src/",
+    "scripts/",
+    "plugin.xml",
+    "README.md",
+    "LICENSE"
+  ]
+}

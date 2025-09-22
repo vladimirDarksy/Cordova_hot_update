@@ -1,0 +1,83 @@
+<?xml version='1.0' encoding='utf-8'?>
+<plugin id="cordova-plugin-hot-updates"
+        version="1.0.0"
+        xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <name>Cordova Hot Updates Plugin</name>
+    <description>
+        Cordova plugin for automatic over-the-air (OTA) hot updates using WebView Reload approach.
+        Enables seamless web content updates without requiring App Store approval.
+    </description>
+    <license>Custom Non-Commercial</license>
+    <keywords>cordova,hot,updates,ota,over-the-air,webview,reload</keywords>
+    <repo>https://github.com/vladimirDarksy/Cordova_hot_update.git</repo>
+    <issue>https://github.com/vladimirDarksy/Cordova_hot_update/issues</issue>
+
+    <author>Mustafin Vladimir</author>
+
+    <engines>
+        <engine name="cordova" version=">=7.0.0" />
+        <engine name="cordova-ios" version=">=4.4.0" />
+    </engines>
+
+    <!-- JavaScript interface -->
+    <js-module src="www/HotUpdates.js" name="HotUpdates">
+        <clobbers target="HotUpdates" />
+    </js-module>
+
+    <!-- iOS platform -->
+    <platform name="ios">
+        <!-- Plugin configuration -->
+        <config-file target="config.xml" parent="/*">
+            <feature name="HotUpdates">
+                <param name="ios-package" value="HotUpdates" />
+                <param name="onload" value="true" />
+            </feature>
+        </config-file>
+
+        <!-- Native iOS files -->
+        <source-file src="src/ios/HotUpdates.h" />
+        <source-file src="src/ios/HotUpdates.m" />
+
+        <!-- Required frameworks -->
+        <framework src="Foundation.framework" />
+        <framework src="UIKit.framework" />
+        <framework src="WebKit.framework" />
+
+        <!-- CocoaPods dependency for ZIP archive handling -->
+        <podspec>
+            <config>
+                <source url="https://github.com/CocoaPods/Specs.git"/>
+            </config>
+            <pods use-frameworks="true">
+                <pod name="SSZipArchive" spec="~> 2.4.0"/>
+            </pods>
+        </podspec>
+
+        <!-- Allow arbitrary loads for update server communication -->
+        <edit-config file="*-Info.plist" mode="merge" target="NSAppTransportSecurity">
+            <dict>
+                <key>NSAllowsArbitraryLoads</key>
+                <true/>
+            </dict>
+        </edit-config>
+
+        <!-- Configuration preferences with default values -->
+        <preference name="hot_updates_server_url" default="https://your-server.com/api/updates" />
+        <preference name="hot_updates_check_interval" default="300000" />
+        <preference name="hot_updates_auto_download" default="true" />
+        <preference name="hot_updates_auto_install" default="true" />
+    </platform>
+
+    <!-- Android platform (placeholder for future implementation) -->
+    <platform name="android">
+        <!-- Android implementation would go here -->
+        <!-- For now, this plugin only supports iOS -->
+    </platform>
+
+    <!-- Plugin hooks (optional) -->
+    <hook type="before_plugin_install" src="scripts/beforeInstall.js" />
+    <hook type="after_plugin_install" src="scripts/afterInstall.js" />
+
+</plugin>
