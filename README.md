@@ -30,17 +30,49 @@ This plugin enables seamless web content updates for your Cordova iOS applicatio
 
 ## 📦 Installation
 
-```bash
-# Install the plugin
-cordova plugin add cordova-plugin-hot-updates
+### Standard Installation (Recommended)
 
-# Or install from GitHub
-cordova plugin add https://github.com/vladimirDarksy/Cordova_hot_update.git
+```bash
+# Install from npm registry
+cordova plugin add cordova-plugin-hot-updates
 
 # Install CocoaPods dependencies (iOS)
 cd platforms/ios
 pod install
 ```
+
+### Alternative Installation Methods
+
+```bash
+# Install from GitHub
+cordova plugin add https://github.com/vladimirDarksy/Cordova_hot_update.git
+
+# Install from local path
+cordova plugin add /path/to/cordova-plugin-hot-updates
+
+# Install specific version
+cordova plugin add cordova-plugin-hot-updates@1.0.0
+```
+
+### Installation with pnpm
+
+If your project uses pnpm, you may need additional configuration:
+
+1. Create or update `.npmrc` in your project root:
+
+```
+public-hoist-pattern[]=cordova-plugin-*
+shamefully-hoist=true
+auto-install-peers=true
+```
+
+2. Then install the plugin:
+
+```bash
+cordova plugin add cordova-plugin-hot-updates
+```
+
+**Note**: Cordova CLI internally uses npm, which can sometimes conflict with pnpm's node_modules structure. The above configuration helps resolve this.
 
 ## 🚀 Quick Start
 
@@ -345,6 +377,34 @@ Documents/
 ## 🐛 Troubleshooting
 
 ### Common Issues
+
+**Plugin installation fails or plugin not found**
+- **npm registry**: Ensure plugin is published to npm
+- **pnpm users**: Add hoisting configuration to `.npmrc` (see Installation with pnpm section)
+- **Git installation**: Use full GitHub URL: `cordova plugin add https://github.com/vladimirDarksy/Cordova_hot_update.git`
+- **Verify installation**: Run `cordova plugin list` to check if plugin is installed
+
+**pnpm + Cordova compatibility issues**
+If you're using pnpm and Cordova can't find the plugin:
+
+1. Add to your project's `.npmrc`:
+   ```
+   public-hoist-pattern[]=cordova-plugin-*
+   shamefully-hoist=true
+   ```
+
+2. Remove and reinstall:
+   ```bash
+   cordova plugin remove cordova-plugin-hot-updates
+   rm -rf node_modules
+   pnpm install
+   cordova plugin add cordova-plugin-hot-updates
+   ```
+
+3. If still not working, check that Cordova CLI can access the plugin:
+   ```bash
+   ls node_modules/cordova-plugin-hot-updates
+   ```
 
 **Updates not downloading**
 - Check your server URL in config.xml

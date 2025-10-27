@@ -1,0 +1,78 @@
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.classpath
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Development
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Testing
+test/
+tests/
+*.test.js
+*.spec.js
+coverage/
+.nyc_output/
+test-output/
+.test-artifacts/
+
+# Build artifacts
+build/
+dist/
+*.tar.gz
+*.tgz
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+*.log
+
+# Claude and AI tools
+.claude/
+
+# Documentation (keep only README.md)
+docs/
+CONTRIBUTING.md
+CHANGELOG.md
+
+# Keep these files (they are already in package.json "files" field):
+# - www/
+# - src/
+# - scripts/
+# - plugin.xml
+# - README.md
+# - LICENSE

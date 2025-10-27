@@ -3,13 +3,17 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
 
-# IDEs
+# IDEs and Editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.settings/
+.classpath
 
 # macOS
 .DS_Store
@@ -17,8 +21,11 @@ yarn-error.log*
 ._*
 .Spotlight-V100
 .Trashes
+
+# Windows
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
 # Development
 *.log
@@ -26,10 +33,20 @@ Thumbs.db
 *.temp
 .cache/
 
-# Build artifacts
-*.tar.gz
-*.zip
+# Build and distribution
 dist/
+build/
+*.tar.gz
+*.tgz
+*.zip
 
-# Editor artifacts
-.editorconfig
+# Test coverage
+coverage/
+.nyc_output/
+
+# Claude local settings
+.claude/settings.local.json
+
+# Temporary test files
+test-output/
+.test-artifacts/
