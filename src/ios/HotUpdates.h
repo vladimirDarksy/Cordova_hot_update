@@ -19,29 +19,6 @@
 
 #import <UIKit/UIKit.h>
 #import <Cordova/CDVPlugin.h>
-
-/**
- * Cordova Hot Updates Plugin for iOS
- *
- * Provides automatic over-the-air (OTA) updates for Cordova applications
- * using the WebView Reload approach for instant updates.
- *
- * Key Features:
- * - Automatic background update checking and downloading
- * - Seamless installation using wwwFolderName switching
- * - Version compatibility checks with semantic versioning
- * - Configurable update intervals and server endpoints
- * - No AppDelegate modifications required
- *
- * Architecture:
- * - Uses Documents/www folder for updated content
- * - Switches WebView to load from Documents instead of bundle
- * - Maintains backward compatibility with bundle version
- * - Supports rollback mechanisms
- *
- * @version 1.0.0
- * @author Mustafin Vladimir
- */
 @interface HotUpdates : CDVPlugin
 {
     NSString *documentsPath;
@@ -49,134 +26,51 @@
     NSString *updateServerURL;
     NSString *appBundleVersion;
     NSTimer *updateCheckTimer;
-    NSTimeInterval checkInterval;
+
+    // Settings
+    BOOL autoUpdateEnabled;           // Флаг автообновлений
+    BOOL firstLaunchDone;             // Первый запуск выполнен
+    NSMutableArray *ignoreList;       // Список игнорируемых версий
+    NSString *previousVersionPath;    // Путь к предыдущей версии
 }
 
-#pragma mark - Plugin Lifecycle Methods
-
-/**
- * Initialize the Hot Updates plugin
- * Called automatically when the plugin is loaded by Cordova
- */
+// Plugin lifecycle methods
 - (void)pluginInitialize;
-
-/**
- * Load configuration from config.xml
- */
 - (void)loadConfiguration;
-
-/**
- * Initialize www folder in Documents directory
- */
 - (void)initializeWWWFolder;
-
-#pragma mark - Update Management Methods
-
-/**
- * Check for pending updates on startup and install them
- */
 - (void)checkAndInstallPendingUpdate;
-
-/**
- * Switch WebView to updated content and reload
- */
 - (void)switchToUpdatedContentWithReload;
-
-/**
- * Force reload the WebView with new content
- */
 - (void)reloadWebView;
 
-/**
- * Install pending update to Documents/www
- * @param newVersion Version string of the update to install
- */
+// Update management methods
 - (void)installPendingUpdate:(NSString*)newVersion;
-
-/**
- * Start background update checking process
- */
 - (void)startBackgroundUpdateProcess;
-
-/**
- * Perform automatic update check
- */
 - (void)performAutomaticUpdateCheck;
-
-/**
- * Download update automatically in background
- * @param downloadURL URL to download the update from
- * @param newVersion Version string of the update
- */
 - (void)downloadUpdateAutomatically:(NSString*)downloadURL version:(NSString*)newVersion;
-
-/**
- * Prepare downloaded update for next launch
- * @param updateLocation Local file URL of downloaded update
- * @param newVersion Version string of the update
- */
 - (void)prepareUpdateForNextLaunch:(NSURL*)updateLocation version:(NSString*)newVersion;
+- (BOOL)unzipFile:(NSString *)zipPath toDestination:(NSString *)destinationPath;
 
-/**
- * Unzip update file to destination
- * @param zipPath Path to ZIP file
- * @param destinationPath Destination directory path
- * @return YES if successful, NO if failed
- */
-- (BOOL)unzipFile:(NSString*)zipPath toDestination:(NSString*)destinationPath;
-
-#pragma mark - Version Comparison Utilities
-
-/**
- * Compare two semantic version strings
- * @param version1 First version string (e.g., "2.7.7")
- * @param version2 Second version string (e.g., "2.8.0")
- * @return NSComparisonResult indicating the relationship between the versions
- */
+// Version comparison utilities
 - (NSComparisonResult)compareVersion:(NSString*)version1 withVersion:(NSString*)version2;
 
-#pragma mark - JavaScript Callable Methods
-
-/**
- * Get current version information
- * @param command CDVInvokedUrlCommand from JavaScript
- */
+// JavaScript callable methods (minimal set for debugging)
 - (void)getCurrentVersion:(CDVInvokedUrlCommand*)command;
-
-/**
- * Get pending update information
- * @param command CDVInvokedUrlCommand from JavaScript
- */
 - (void)getPendingUpdateInfo:(CDVInvokedUrlCommand*)command;
 
-/**
- * Check for updates manually
- * @param command CDVInvokedUrlCommand from JavaScript
- */
+// Settings management
+- (void)setAutoUpdateEnabled:(CDVInvokedUrlCommand*)command;
+- (void)addToIgnoreList:(CDVInvokedUrlCommand*)command;
+- (void)removeFromIgnoreList:(CDVInvokedUrlCommand*)command;
+- (void)clearIgnoreList:(CDVInvokedUrlCommand*)command;
+- (void)getIgnoreListJS:(CDVInvokedUrlCommand*)command;
+
+// Update methods
+- (void)forceUpdate:(CDVInvokedUrlCommand*)command;
+- (void)canary:(CDVInvokedUrlCommand*)command;
+- (void)rollback:(CDVInvokedUrlCommand*)command;
 - (void)checkForUpdates:(CDVInvokedUrlCommand*)command;
 
-/**
- * Download specific update
- * @param command CDVInvokedUrlCommand from JavaScript with [downloadURL, version, callbackId]
- */
-- (void)downloadUpdate:(CDVInvokedUrlCommand*)command;
-
-/**
- * Get plugin configuration
- * @param command CDVInvokedUrlCommand from JavaScript
- */
-- (void)getConfiguration:(CDVInvokedUrlCommand*)command;
-
-/**
- * Install pending update immediately (requires app restart)
- * @param command CDVInvokedUrlCommand from JavaScript
- */
-- (void)installUpdate:(CDVInvokedUrlCommand*)command;
-
-/**
- * Set progress callback for downloads
- * @param command CDVInvokedUrlCommand from JavaScript
- */
-- (void)setProgressCallback:(CDVInvokedUrlCommand*)command;
+// Information methods
+- (void)getVersionInfo:(CDVInvokedUrlCommand*)command;
 
 @end
