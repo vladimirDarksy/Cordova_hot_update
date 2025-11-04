@@ -306,4 +306,4 @@ For commercial licensing inquiries, please contact: **Mustafin Vladimir** <outvo
 
 **Made with ❤️ by [Mustafin Vladimir](https://github.com/vladimirDarksy)**
 
-**Version:** 2.1.0 | **Last Updated:** 2025-11-04
+**Version:** 2.1.1 | **Last Updated:** 2025-11-04
