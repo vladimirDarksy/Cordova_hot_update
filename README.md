@@ -1,293 +1,200 @@
 # Cordova Hot Updates Plugin
 
-🔥 **Automatic over-the-air (OTA) hot updates for Cordova applications using WebView Reload approach**
+🔥 **Frontend-controlled over-the-air (OTA) hot updates for Cordova iOS applications**
 
 [![npm version](https://badge.fury.io/js/cordova-plugin-hot-updates.svg)](https://badge.fury.io/js/cordova-plugin-hot-updates)
 [![License](https://img.shields.io/badge/License-Custom%20Non--Commercial-blue.svg)](#license)
 
-This plugin enables seamless web content updates for your Cordova iOS applications without requiring App Store approval. Updates are downloaded in the background and applied automatically on the next app launch.
+This plugin enables **manual, JavaScript-controlled** web content updates for your Cordova iOS applications without requiring App Store approval. Your frontend code decides when to check, download, and install updates.
 
-## 🚀 Key Features
+## ✨ What's New in v2.1.0
 
-- **🔄 Automatic Background Updates**: Continuously checks for and downloads updates
-- **⚡ Instant Application**: WebView Reload approach for immediate effect
-- **📦 Semantic Versioning**: Smart version comparison and compatibility checks
-- **🛡️ Rollback Support**: Automatic fallback on corrupted updates
-- **⚙️ Configurable**: Customizable server URLs and check intervals
-- **🎯 Zero Configuration**: Works out of the box with sensible defaults
+- ✅ **Smart Download**: `getUpdate()` won't re-download already installed versions
+- ✅ **Cleaner Native Code**: Removed debug logs and emojis for production
+- ✅ **Better Documentation**: Complete API docs in `docs/` folder
+- ✅ **Bug Fixes**: Fixed duplicate download issues and code cleanup
 
-## 📋 Table of Contents
+[See full changelog](CHANGELOG.md)
 
-- [Installation](#-installation)
-- [Quick Start](#-quick-start)
-- [Configuration](#-configuration)
-- [API Reference](#-api-reference)
-- [Server Implementation](#-server-implementation)
-- [How It Works](#-how-it-works)
-- [Troubleshooting](#-troubleshooting)
-- [Contributing](#-contributing)
-- [License](#-license)
+## 🎯 Key Features
+
+- **🎮 Frontend Control**: Your JavaScript decides when to update (no automatic background checks)
+- **⚡ Two-Step Updates**: Separate download and install for better UX
+- **🔄 Auto-Install**: If user ignores popup, update installs on next app launch
+- **🐦 Canary System**: Automatic rollback if update fails to load (20-second timeout)
+- **📋 IgnoreList**: Tracks problematic versions (informational only)
+- **🚀 Instant Effect**: WebView Reload approach - no app restart needed
 
 ## 📦 Installation
 
-### Standard Installation (Recommended)
-
 ```bash
-# Install from npm registry
+# Install from npm
 cordova plugin add cordova-plugin-hot-updates
 
-# Install CocoaPods dependencies (iOS)
+# Install CocoaPods dependencies (required)
 cd platforms/ios
 pod install
 ```
 
-### Alternative Installation Methods
-
-```bash
-# Install from GitHub
-cordova plugin add https://github.com/vladimirDarksy/Cordova_hot_update.git
-
-# Install from local path
-cordova plugin add /path/to/cordova-plugin-hot-updates
-
-# Install specific version
-cordova plugin add cordova-plugin-hot-updates@1.0.0
-```
-
-### Installation with pnpm
-
-If your project uses pnpm, you may need additional configuration:
-
-1. Create or update `.npmrc` in your project root:
-
-```
-public-hoist-pattern[]=cordova-plugin-*
-shamefully-hoist=true
-auto-install-peers=true
-```
-
-2. Then install the plugin:
-
-```bash
-cordova plugin add cordova-plugin-hot-updates
-```
-
-**Note**: Cordova CLI internally uses npm, which can sometimes conflict with pnpm's node_modules structure. The above configuration helps resolve this.
+**Requirements:**
+- Cordova >= 7.0.0
+- cordova-ios >= 4.4.0
+- iOS >= 11.0
+- CocoaPods (for SSZipArchive dependency)
 
 ## 🚀 Quick Start
 
-### 1. Configure Your Server URL
-
-Add to your `config.xml`:
-
-```xml
-<preference name="hot_updates_server_url" value="https://your-server.com/api/updates" />
-<preference name="hot_updates_check_interval" value="300000" />
-```
-
-### 2. Basic Usage
+### 1. Minimal Integration
 
 ```javascript
-// Check current version
-HotUpdates.getCurrentVersion(
-  function(version) {
-    console.log('Current version:', version);
-  },
-  function(error) {
-    console.error('Error:', error);
-  }
-);
+document.addEventListener('deviceready', function() {
+    // STEP 1: Confirm app loaded successfully (REQUIRED on every start!)
+    cordova.exec(
+        function(info) {
+            const currentVersion = info.installedVersion || info.appBundleVersion;
 
-// Check for pending updates
-HotUpdates.getPendingUpdateInfo(
-  function(info) {
-    if (info.hasPendingUpdate) {
-      console.log('Update ready:', info.pendingVersion);
-      alert('New update will be applied on next app restart');
-    }
-  },
-  function(error) {
-    console.error('Error:', error);
-  }
-);
+            // This MUST be called within 20 seconds or automatic rollback occurs
+            window.HotUpdates.canary(currentVersion, function() {
+                console.log('✅ Canary confirmed');
+            });
 
-// Manually check for updates
-HotUpdates.checkForUpdates(
-  function(result) {
-    if (result.hasUpdate) {
-      console.log('Update available:', result.availableVersion);
-      // Optionally download manually
-      HotUpdates.downloadUpdate(
-        result.downloadURL,
-        result.availableVersion,
-        function() {
-          console.log('Download completed');
+            // STEP 2: Check for updates on YOUR server
+            fetch('https://your-api.com/updates/check?version=' + currentVersion)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.hasUpdate) {
+                        // STEP 3: Download update
+                        window.HotUpdates.getUpdate({
+                            url: data.downloadURL,
+                            version: data.newVersion
+                        }, function(error) {
+                            if (error) {
+                                console.error('Download failed:', error.error.message);
+                                return;
+                            }
+
+                            // STEP 4: Show popup
+                            if (confirm('Update to ' + data.newVersion + '?')) {
+                                // STEP 5: Install immediately
+                                window.HotUpdates.forceUpdate(function(error) {
+                                    if (error) {
+                                        console.error('Install failed:', error.error.message);
+                                    }
+                                    // WebView reloads automatically
+                                });
+                            }
+                            // If user cancels: update installs automatically on next launch
+                        });
+                    }
+                });
         },
         function(error) {
-          console.error('Download failed:', error);
-        }
-      );
-    }
-  },
-  function(error) {
-    console.error('Check failed:', error);
-  }
-);
-```
-
-## ⚙️ Configuration
-
-### config.xml Preferences
-
-| Preference | Default | Description |
-|------------|---------|-------------|
-| `hot_updates_server_url` | `https://your-server.com/api/updates` | Update server endpoint |
-| `hot_updates_check_interval` | `300000` | Check interval in milliseconds (5 minutes) |
-| `hot_updates_auto_download` | `true` | Enable automatic download |
-| `hot_updates_auto_install` | `true` | Enable automatic installation on restart |
-
-### Example Configuration
-
-```xml
-<widget id="com.yourcompany.yourapp" version="1.0.0">
-  <!-- Hot Updates Configuration -->
-  <preference name="hot_updates_server_url" value="https://updates.yourapp.com/api/check" />
-  <preference name="hot_updates_check_interval" value="600000" />
-  <preference name="hot_updates_auto_download" value="true" />
-  <preference name="hot_updates_auto_install" value="true" />
-
-  <!-- Your other configurations... -->
-</widget>
+            console.error('Failed to get version:', error);
+        },
+        'HotUpdates',
+        'getVersionInfo',
+        []
+    );
+});
 ```
 
 ## 📚 API Reference
 
-### Methods
+### Core Methods (v2.1.0)
 
-#### `getCurrentVersion(successCallback, errorCallback)`
+#### 1. `getUpdate({url, version?}, callback)`
 
-Gets the currently active version string.
-
-```javascript
-HotUpdates.getCurrentVersion(
-  function(version) {
-    console.log('Current version:', version); // "1.2.3"
-  },
-  function(error) {
-    console.error('Error getting version:', error);
-  }
-);
-```
-
-#### `getPendingUpdateInfo(successCallback, errorCallback)`
-
-Gets information about downloaded updates waiting to be installed.
+Downloads update in background. **Does NOT install!**
 
 ```javascript
-HotUpdates.getPendingUpdateInfo(
-  function(info) {
-    // info object contains:
-    // - hasPendingUpdate: boolean
-    // - pendingVersion: string
-    // - appBundleVersion: string
-    // - installedVersion: string
-    // - message: string
-  },
-  function(error) {
-    console.error('Error getting update info:', error);
-  }
-);
+window.HotUpdates.getUpdate({
+    url: 'https://server.com/updates/2.7.8.zip',
+    version: '2.7.8'  // Optional
+}, function(error) {
+    if (error) {
+        console.error('Download failed:', error.error.message);
+    } else {
+        console.log('✅ Download complete');
+    }
+});
 ```
 
-#### `checkForUpdates(successCallback, errorCallback)`
+**Features:**
+- Returns success if version already installed (won't re-download)
+- Saves to two locations: immediate install + auto-install on next launch
+- Callback format: `null` on success, `{error: {message}}` on error
 
-Manually triggers an update check.
+#### 2. `forceUpdate(callback)`
+
+Installs downloaded update and reloads WebView. **No parameters needed!**
 
 ```javascript
-HotUpdates.checkForUpdates(
-  function(result) {
-    // result object contains:
-    // - hasUpdate: boolean
-    // - currentVersion: string
-    // - availableVersion: string (if hasUpdate is true)
-    // - downloadURL: string (if hasUpdate is true)
-    // - minAppVersion: string (if specified)
-  },
-  function(error) {
-    console.error('Update check failed:', error);
-  }
-);
+window.HotUpdates.forceUpdate(function(error) {
+    if (error) {
+        console.error('Install failed:', error.error.message);
+    } else {
+        console.log('✅ Installed, reloading...');
+    }
+});
 ```
 
-#### `downloadUpdate(downloadURL, version, successCallback, errorCallback, progressCallback)`
+**Important:**
+- Must call `getUpdate()` first
+- WebView reloads automatically after ~1 second
+- Call `canary()` after reload to confirm success
 
-Manually downloads a specific update.
+#### 3. `canary(version, callback)`
+
+Confirms bundle loaded successfully. **REQUIRED on every app start!**
 
 ```javascript
-HotUpdates.downloadUpdate(
-  'https://server.com/updates/v2.0.0.zip',
-  '2.0.0',
-  function() {
-    console.log('Download completed');
-  },
-  function(error) {
-    console.error('Download failed:', error);
-  },
-  function(progress) {
-    console.log('Download progress:', progress + '%');
-  }
-);
+window.HotUpdates.canary('2.7.8', function() {
+    console.log('✅ Canary confirmed');
+});
 ```
 
-#### `getConfiguration(successCallback, errorCallback)`
+**Critical:**
+- Must be called within 20 seconds after app start
+- If not called: automatic rollback to previous version
+- Failed version is added to ignore list
 
-Gets the current plugin configuration.
+#### 4. `getIgnoreList(callback)`
+
+Returns list of versions that caused problems.
 
 ```javascript
-HotUpdates.getConfiguration(
-  function(config) {
-    // config object contains:
-    // - serverURL: string
-    // - checkInterval: number (milliseconds)
-    // - appBundleVersion: string
-    // - autoDownload: boolean
-  },
-  function(error) {
-    console.error('Error getting config:', error);
-  }
-);
+window.HotUpdates.getIgnoreList(function(result) {
+    const badVersions = result.versions; // ["2.7.5", "2.7.6"]
+
+    // Check before downloading
+    if (!badVersions.includes(newVersion)) {
+        // Safe to download
+    }
+});
 ```
 
-## 🖥️ Server Implementation
+**Note:** IgnoreList is informational only - you decide whether to skip versions.
 
-Your update server should implement the following API:
+## 🖥️ Server Requirements
 
-### Check for Updates Endpoint
+Your server should provide:
 
-**GET** `/check?version={currentVersion}&platform=ios`
+### Check Endpoint
 
-**Response** (when update available):
+**GET** `/api/updates/check?version={current}&platform=ios`
+
 ```json
 {
   "hasUpdate": true,
-  "version": "1.2.0",
-  "downloadURL": "https://yourserver.com/updates/v1.2.0.zip",
-  "minAppVersion": "1.0.0",
-  "releaseNotes": "Bug fixes and improvements"
+  "newVersion": "2.7.8",
+  "downloadURL": "https://server.com/updates/2.7.8.zip",
+  "minAppVersion": "2.7.0"
 }
 ```
 
-**Response** (when no update available):
-```json
-{
-  "hasUpdate": false,
-  "message": "No updates available"
-}
-```
+### Update Package
 
-### Update Package Format
-
-Your update ZIP file should contain a `www` folder with your web content:
+ZIP file containing `www` folder:
 
 ```
 update.zip
@@ -295,136 +202,72 @@ update.zip
     ├── index.html
     ├── js/
     ├── css/
-    ├── img/
     └── ...
-```
-
-### Example Server Implementation (Node.js)
-
-```javascript
-const express = require('express');
-const app = express();
-
-app.get('/api/updates/check', (req, res) => {
-  const { version, platform } = req.query;
-  const currentVersion = version || '1.0.0';
-  const latestVersion = '1.2.0'; // Your latest version
-
-  if (compareVersions(currentVersion, latestVersion) < 0) {
-    res.json({
-      hasUpdate: true,
-      version: latestVersion,
-      downloadURL: `https://yourserver.com/updates/v${latestVersion}.zip`,
-      minAppVersion: '1.0.0',
-      releaseNotes: 'Bug fixes and improvements'
-    });
-  } else {
-    res.json({
-      hasUpdate: false,
-      message: 'No updates available'
-    });
-  }
-});
-
-function compareVersions(version1, version2) {
-  const v1parts = version1.split('.').map(Number);
-  const v2parts = version2.split('.').map(Number);
-
-  for (let i = 0; i < Math.max(v1parts.length, v2parts.length); i++) {
-    const v1part = v1parts[i] || 0;
-    const v2part = v2parts[i] || 0;
-
-    if (v1part < v2part) return -1;
-    if (v1part > v2part) return 1;
-  }
-
-  return 0;
-}
-
-app.listen(3000, () => {
-  console.log('Update server running on port 3000');
-});
 ```
 
 ## 🔧 How It Works
 
-### WebView Reload Approach
+### Two-Step Update Flow
 
-1. **Startup Check**: On app launch, the plugin checks for pending updates
-2. **Installation**: If found, updates are installed to `Documents/www`
-3. **WebView Switch**: The WebView is configured to load from `Documents/www` instead of bundle
-4. **Background Process**: Automatic checking and downloading runs in background
-5. **Next Launch**: New updates are applied on next app restart
+```
+1. JS checks YOUR server for updates
+2. getUpdate() downloads ZIP in background
+3. Show popup to user
+4. User clicks "Update": forceUpdate() installs immediately
+5. User ignores: update auto-installs on next app launch
+6. WebView reloads with new content
+7. JS calls canary() to confirm success
+```
+
+### Rollback Protection
+
+- 20-second canary timer starts after update
+- If `canary()` not called → automatic rollback
+- Failed version added to ignore list
+- App continues working on previous version
 
 ### File Structure
 
 ```
 Documents/
-├── www/                     # Updated web content (active)
-├── pending_update/          # Downloaded update waiting for installation
-│   └── www/                 # New web content
-└── www_backup/              # Backup of previous version (for rollback)
+├── www/                     # Active version
+├── www_previous/            # Backup (for rollback)
+├── pending_update/          # Next launch auto-install
+└── temp_downloaded_update/  # Immediate install
 ```
 
-### Update Lifecycle
+## 📖 Full Documentation
 
-```
-[Bundle] -> [Check] -> [Download] -> [Prepare] -> [Install] -> [Reload]
-   ↑                                                             ↓
-   └─────────────────── [Next App Launch] ←──────────────────────┘
-```
+- **[docs/README.md](docs/README.md)** - Quick start guide
+- **[docs/API.md](docs/API.md)** - Complete API reference
+- **[docs/hot-updates-admin.html](docs/hot-updates-admin.html)** - Testing interface
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-**Plugin installation fails or plugin not found**
-- **npm registry**: Ensure plugin is published to npm
-- **pnpm users**: Add hoisting configuration to `.npmrc` (see Installation with pnpm section)
-- **Git installation**: Use full GitHub URL: `cordova plugin add https://github.com/vladimirDarksy/Cordova_hot_update.git`
-- **Verify installation**: Run `cordova plugin list` to check if plugin is installed
+**Updates not working**
+- Check `canary()` is called on every app start
+- Verify server URL returns correct JSON
+- Check iOS device logs for errors
 
-**pnpm + Cordova compatibility issues**
-If you're using pnpm and Cordova can't find the plugin:
+**Duplicate downloads**
+- ✅ Fixed in v2.1.0! `getUpdate()` now checks installed version
 
-1. Add to your project's `.npmrc`:
-   ```
-   public-hoist-pattern[]=cordova-plugin-*
-   shamefully-hoist=true
-   ```
+**WebView shows old content**
+- ✅ Fixed in v2.1.0! Cache is cleared before reload
 
-2. Remove and reinstall:
-   ```bash
-   cordova plugin remove cordova-plugin-hot-updates
-   rm -rf node_modules
-   pnpm install
-   cordova plugin add cordova-plugin-hot-updates
-   ```
+**CocoaPods errors**
+```bash
+cd platforms/ios
+pod install
+cordova clean ios && cordova build ios
+```
 
-3. If still not working, check that Cordova CLI can access the plugin:
-   ```bash
-   ls node_modules/cordova-plugin-hot-updates
-   ```
+### Debug Logs
 
-**Updates not downloading**
-- Check your server URL in config.xml
-- Verify server is returning correct JSON format
-- Check device network connectivity
-- Enable debugging with `cordova run ios --device --debug`
-
-**WebView not reloading updated content**
-- Ensure `Documents/www/index.html` exists
-- Check iOS device logs for WebView errors
-- Verify ZIP package contains `www` folder
-
-**CocoaPods issues**
-- Run `pod install` in `platforms/ios` directory
-- Update CocoaPods: `sudo gem install cocoapods`
-- Clean and rebuild: `cordova clean ios && cordova build ios`
-
-### Debug Logging
-
-The plugin provides extensive console logging. To view:
+All plugin actions are logged with `[HotUpdates]` prefix:
 
 ```bash
 # iOS Simulator
@@ -434,39 +277,17 @@ cordova run ios --debug
 # Use Xcode console or Safari Web Inspector
 ```
 
-### Reset Plugin State
-
-```javascript
-// Clear all plugin data (for testing)
-localStorage.removeItem('hot_updates_installed_version');
-localStorage.removeItem('hot_updates_pending_version');
-localStorage.removeItem('hot_updates_has_pending');
-```
-
 ## ⚠️ Important Notes
 
 - **iOS Only**: Currently supports iOS platform only
-- **HTTPS Required**: Update server should use HTTPS in production
+- **Manual Updates Only**: No automatic background checking (you control everything)
 - **App Store Compliance**: Only update web content, not native code
-- **Testing**: Test thoroughly on real devices before production
-- **Rollback**: Keep ability to rollback via App Store if needed
-
-## 📄 Requirements
-
-- **Cordova**: >= 7.0.0
-- **cordova-ios**: >= 4.4.0
-- **iOS**: >= 11.0
-- **CocoaPods**: For SSZipArchive dependency
+- **HTTPS Required**: Update server should use HTTPS in production
+- **Testing**: Test rollback mechanism thoroughly
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions are welcome! Please submit a Pull Request.
 
 ## 📝 License
 
@@ -474,14 +295,15 @@ This project is licensed under the Custom Non-Commercial License - see the [LICE
 
 **⚠️ Commercial use is strictly prohibited without explicit written permission from the copyright holder.**
 
-For commercial licensing inquiries, please contact: **Mustafin Vladimir**
+For commercial licensing inquiries, please contact: **Mustafin Vladimir** <outvova.gor@gmail.com>
 
 ## 🙋‍♂️ Support
 
 - **Issues**: [GitHub Issues](https://github.com/vladimirDarksy/Cordova_hot_update/issues)
-- **Documentation**: This README and inline code documentation
-- **Discussions**: [GitHub Discussions](https://github.com/vladimirDarksy/Cordova_hot_update/discussions)
+- **npm**: [cordova-plugin-hot-updates](https://www.npmjs.com/package/cordova-plugin-hot-updates)
 
 ---
 
 **Made with ❤️ by [Mustafin Vladimir](https://github.com/vladimirDarksy)**
+
+**Version:** 2.1.0 | **Last Updated:** 2025-11-04
