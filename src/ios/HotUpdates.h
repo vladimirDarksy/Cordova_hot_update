@@ -23,14 +23,10 @@
 {
     NSString *documentsPath;
     NSString *wwwPath;
-    NSString *updateServerURL;
     NSString *appBundleVersion;
-    NSTimer *updateCheckTimer;
 
     // Settings
-    BOOL autoUpdateEnabled;           // Флаг автообновлений
-    BOOL firstLaunchDone;             // Первый запуск выполнен
-    NSMutableArray *ignoreList;       // Список игнорируемых версий
+    NSMutableArray *ignoreList;       // Список игнорируемых версий (управляется только native)
     NSString *previousVersionPath;    // Путь к предыдущей версии
 }
 
@@ -42,12 +38,8 @@
 - (void)switchToUpdatedContentWithReload;
 - (void)reloadWebView;
 
-// Update management methods
+// Update management methods (internal)
 - (void)installPendingUpdate:(NSString*)newVersion;
-- (void)startBackgroundUpdateProcess;
-- (void)performAutomaticUpdateCheck;
-- (void)downloadUpdateAutomatically:(NSString*)downloadURL version:(NSString*)newVersion;
-- (void)prepareUpdateForNextLaunch:(NSURL*)updateLocation version:(NSString*)newVersion;
 - (BOOL)unzipFile:(NSString *)zipPath toDestination:(NSString *)destinationPath;
 
 // Version comparison utilities
@@ -57,18 +49,19 @@
 - (void)getCurrentVersion:(CDVInvokedUrlCommand*)command;
 - (void)getPendingUpdateInfo:(CDVInvokedUrlCommand*)command;
 
-// Settings management
-- (void)setAutoUpdateEnabled:(CDVInvokedUrlCommand*)command;
+// Ignore List management (JS can only read, native controls)
+- (void)getIgnoreList:(CDVInvokedUrlCommand*)command;
+
+// Debug methods (for manual testing only)
 - (void)addToIgnoreList:(CDVInvokedUrlCommand*)command;
 - (void)removeFromIgnoreList:(CDVInvokedUrlCommand*)command;
 - (void)clearIgnoreList:(CDVInvokedUrlCommand*)command;
-- (void)getIgnoreListJS:(CDVInvokedUrlCommand*)command;
 
-// Update methods
-- (void)forceUpdate:(CDVInvokedUrlCommand*)command;
-- (void)canary:(CDVInvokedUrlCommand*)command;
-- (void)rollback:(CDVInvokedUrlCommand*)command;
-- (void)checkForUpdates:(CDVInvokedUrlCommand*)command;
+// Update methods (v2.1.0 - manual updates only)
+- (void)getUpdate:(CDVInvokedUrlCommand*)command;      // Download update
+- (void)forceUpdate:(CDVInvokedUrlCommand*)command;    // Install downloaded update
+- (void)canary:(CDVInvokedUrlCommand*)command;         // Confirm successful load
+- (void)rollback:(CDVInvokedUrlCommand*)command;       // Rollback to previous version
 
 // Information methods
 - (void)getVersionInfo:(CDVInvokedUrlCommand*)command;
