@@ -1,4 +1,4 @@
-# Cordova Hot Updates Plugin v2.1.2
+# Cordova Hot Updates Plugin v2.2.0
 
 Frontend-controlled manual hot updates for Cordova iOS applications using WebView Reload approach.
 
@@ -83,6 +83,66 @@ function downloadAndInstall(url, version) {
         }
     });
 }
+```
+
+## Error Handling
+
+All errors are returned in a unified format for programmatic handling:
+
+```javascript
+// Error format
+callback({
+  error: {
+    code: "ERROR_CODE",        // Code for programmatic handling
+    message: "Detailed message" // Detailed message for logs
+  }
+})
+
+// Success result
+callback(null)
+```
+
+### Error Codes
+
+#### getUpdate() errors:
+- `UPDATE_DATA_REQUIRED` - Missing updateData parameter
+- `URL_REQUIRED` - Missing url parameter
+- `DOWNLOAD_IN_PROGRESS` - Download already in progress
+- `DOWNLOAD_FAILED` - Network download error (message contains details)
+- `HTTP_ERROR` - HTTP status != 200 (message contains status code)
+- `TEMP_DIR_ERROR` - Error creating temporary directory
+- `EXTRACTION_FAILED` - Error extracting ZIP archive
+- `WWW_NOT_FOUND` - www folder not found in archive
+
+#### forceUpdate() errors:
+- `NO_UPDATE_READY` - getUpdate() not called first
+- `UPDATE_FILES_NOT_FOUND` - Downloaded update files not found
+- `INSTALL_FAILED` - Error copying files (message contains details)
+
+#### canary() errors:
+- `VERSION_REQUIRED` - Missing version parameter
+
+### Error Handling Example
+
+```javascript
+window.hotUpdate.getUpdate({url: 'http://...'}, function(error) {
+  if (error) {
+    console.error('[HotUpdates]', error.code, ':', error.message);
+
+    switch(error.code) {
+      case 'HTTP_ERROR':
+        // Handle HTTP errors
+        break;
+      case 'DOWNLOAD_FAILED':
+        // Handle network errors
+        break;
+      default:
+        console.error('Unknown error:', error);
+    }
+  } else {
+    console.log('Update downloaded successfully');
+  }
+});
 ```
 
 ## API Reference
@@ -401,47 +461,6 @@ document.addEventListener('deviceready', function() {
     console.log(window.hotUpdate); // Now available
 }, false);
 ```
-
-## Migration from v1.0.0
-
-**Removed methods:**
-- `getCurrentVersion()` - Manage in JS
-- `getPendingUpdateInfo()` - Not needed
-- `checkForUpdates()` - Frontend controls
-- `downloadUpdate()` - Use `getUpdate()`
-- `installUpdate()` - Use `forceUpdate()`
-
-**New API:**
-- `window.hotUpdate.getUpdate({url, version?}, callback)`
-- `window.hotUpdate.forceUpdate(callback)`
-- `window.hotUpdate.canary(version, callback)`
-- `window.hotUpdate.getIgnoreList(callback)`
-
-**Changes:**
-- API via `window.hotUpdate` (not `window.HotUpdates`)
-- Callback signature: `callback(error)` pattern
-- No automatic background checking
-
-## Changelog
-
-### v2.1.2 (2025-11-13)
-
-**Breaking Changes:**
-- Changed API from `window.HotUpdates` to `window.hotUpdate`
-- Removed automatic update checking
-- Simplified to 4 methods: `getUpdate`, `forceUpdate`, `canary`, `getIgnoreList`
-
-**New Features:**
-- Frontend-controlled manual updates
-- Two-step update flow
-- 20-second canary timer
-- IgnoreList system
-- Auto-install on next launch
-- WebView cache clearing
-
-### v1.0.0
-
-- Initial release
 
 ## License
 

@@ -19,6 +19,8 @@
 
 #import <UIKit/UIKit.h>
 #import <Cordova/CDVPlugin.h>
+#import "HotUpdatesConstants.h"
+
 @interface HotUpdates : CDVPlugin
 {
     NSString *documentsPath;
@@ -61,9 +63,8 @@
 - (void)getUpdate:(CDVInvokedUrlCommand*)command;      // Download update
 - (void)forceUpdate:(CDVInvokedUrlCommand*)command;    // Install downloaded update
 - (void)canary:(CDVInvokedUrlCommand*)command;         // Confirm successful load
-- (void)rollback:(CDVInvokedUrlCommand*)command;       // Rollback to previous version
 
-// Information methods
-- (void)getVersionInfo:(CDVInvokedUrlCommand*)command;
+// Debug methods
+- (void)getVersionInfo:(CDVInvokedUrlCommand*)command; // Get all version info for debugging
 
 @end

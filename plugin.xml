@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <plugin id="cordova-plugin-hot-updates"
-        version="2.1.2"
+        version="2.2.0"
         xmlns="http://apache.org/cordova/ns/plugins/1.0"
         xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -40,6 +40,10 @@
         <!-- Native iOS files -->
         <source-file src="src/ios/HotUpdates.h" />
         <source-file src="src/ios/HotUpdates.m" />
+        <source-file src="src/ios/HotUpdatesConstants.h" />
+        <source-file src="src/ios/HotUpdatesConstants.m" />
+        <source-file src="src/ios/HotUpdates+Helpers.h" />
+        <source-file src="src/ios/HotUpdates+Helpers.m" />
 
         <!-- Required frameworks -->
         <framework src="Foundation.framework" />
