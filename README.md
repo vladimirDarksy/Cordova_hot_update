@@ -1,31 +1,23 @@
-# Cordova Hot Updates Plugin
+# Cordova Hot Updates Plugin v2.1.2
 
-🔥 **Frontend-controlled over-the-air (OTA) hot updates for Cordova iOS applications**
+Frontend-controlled manual hot updates for Cordova iOS applications using WebView Reload approach.
 
 [![npm version](https://badge.fury.io/js/cordova-plugin-hot-updates.svg)](https://badge.fury.io/js/cordova-plugin-hot-updates)
 [![License](https://img.shields.io/badge/License-Custom%20Non--Commercial-blue.svg)](#license)
 
 This plugin enables **manual, JavaScript-controlled** web content updates for your Cordova iOS applications without requiring App Store approval. Your frontend code decides when to check, download, and install updates.
 
-## ✨ What's New in v2.1.0
+## Features
 
-- ✅ **Smart Download**: `getUpdate()` won't re-download already installed versions
-- ✅ **Cleaner Native Code**: Removed debug logs and emojis for production
-- ✅ **Better Documentation**: Complete API docs in `docs/` folder
-- ✅ **Bug Fixes**: Fixed duplicate download issues and code cleanup
+- **Frontend Control**: JavaScript decides when to update (no automatic background checking)
+- **Two-Step Updates**: Separate download (`getUpdate`) and install (`forceUpdate`) for better UX
+- **Auto-Install on Launch**: If user ignores update prompt, it installs on next app launch
+- **Canary System**: Automatic rollback if update fails to load (20-second timeout)
+- **IgnoreList**: Tracks problematic versions (information only, does NOT block installation)
+- **Instant Effect**: WebView Reload approach - no app restart needed
+- **Cache Management**: Clears WKWebView cache (disk, memory, Service Worker) before reload
 
-[See full changelog](CHANGELOG.md)
-
-## 🎯 Key Features
-
-- **🎮 Frontend Control**: Your JavaScript decides when to update (no automatic background checks)
-- **⚡ Two-Step Updates**: Separate download and install for better UX
-- **🔄 Auto-Install**: If user ignores popup, update installs on next app launch
-- **🐦 Canary System**: Automatic rollback if update fails to load (20-second timeout)
-- **📋 IgnoreList**: Tracks problematic versions (informational only)
-- **🚀 Instant Effect**: WebView Reload approach - no app restart needed
-
-## 📦 Installation
+## Installation
 
 ```bash
 # Install from npm
@@ -36,166 +28,298 @@ cd platforms/ios
 pod install
 ```
 
+Or install from local directory:
+
+```bash
+cordova plugin add /path/to/cordova-plugin-hot-updates
+```
+
+Or install from GitHub:
+
+```bash
+cordova plugin add https://github.com/vladimirDarksy/Cordova_hot_update.git
+```
+
 **Requirements:**
 - Cordova >= 7.0.0
 - cordova-ios >= 4.4.0
-- iOS >= 11.0
+- iOS >= 11.2
 - CocoaPods (for SSZipArchive dependency)
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Minimal Integration
 
 ```javascript
 document.addEventListener('deviceready', function() {
-    // STEP 1: Confirm app loaded successfully (REQUIRED on every start!)
-    cordova.exec(
-        function(info) {
-            const currentVersion = info.installedVersion || info.appBundleVersion;
+    // CRITICAL: Confirm successful bundle load within 20 seconds
+    var currentVersion = localStorage.getItem('app_version') || '1.0.0';
+    window.hotUpdate.canary(currentVersion);
 
-            // This MUST be called within 20 seconds or automatic rollback occurs
-            window.HotUpdates.canary(currentVersion, function() {
-                console.log('✅ Canary confirmed');
-            });
+    // Check for updates
+    checkForUpdates();
+}, false);
 
-            // STEP 2: Check for updates on YOUR server
-            fetch('https://your-api.com/updates/check?version=' + currentVersion)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.hasUpdate) {
-                        // STEP 3: Download update
-                        window.HotUpdates.getUpdate({
-                            url: data.downloadURL,
-                            version: data.newVersion
-                        }, function(error) {
-                            if (error) {
-                                console.error('Download failed:', error.error.message);
-                                return;
-                            }
+function checkForUpdates() {
+    fetch('https://your-server.com/api/check-update?version=1.0.0')
+        .then(response => response.json())
+        .then(data => {
+            if (data.hasUpdate) {
+                downloadAndInstall(data.downloadUrl, data.version);
+            }
+        });
+}
 
-                            // STEP 4: Show popup
-                            if (confirm('Update to ' + data.newVersion + '?')) {
-                                // STEP 5: Install immediately
-                                window.HotUpdates.forceUpdate(function(error) {
-                                    if (error) {
-                                        console.error('Install failed:', error.error.message);
-                                    }
-                                    // WebView reloads automatically
-                                });
-                            }
-                            // If user cancels: update installs automatically on next launch
-                        });
-                    }
+function downloadAndInstall(url, version) {
+    window.hotUpdate.getUpdate({url: url, version: version}, function(error) {
+        if (!error) {
+            if (confirm('Update available. Install now?')) {
+                localStorage.setItem('app_version', version);
+                window.hotUpdate.forceUpdate(function(error) {
+                    // WebView will reload, canary() will be called in deviceready
                 });
-        },
-        function(error) {
-            console.error('Failed to get version:', error);
-        },
-        'HotUpdates',
-        'getVersionInfo',
-        []
-    );
-});
-```
-
-## 📚 API Reference
-
-### Core Methods (v2.1.0)
-
-#### 1. `getUpdate({url, version?}, callback)`
-
-Downloads update in background. **Does NOT install!**
-
-```javascript
-window.HotUpdates.getUpdate({
-    url: 'https://server.com/updates/2.7.8.zip',
-    version: '2.7.8'  // Optional
-}, function(error) {
-    if (error) {
-        console.error('Download failed:', error.error.message);
-    } else {
-        console.log('✅ Download complete');
-    }
-});
-```
-
-**Features:**
-- Returns success if version already installed (won't re-download)
-- Saves to two locations: immediate install + auto-install on next launch
-- Callback format: `null` on success, `{error: {message}}` on error
-
-#### 2. `forceUpdate(callback)`
-
-Installs downloaded update and reloads WebView. **No parameters needed!**
-
-```javascript
-window.HotUpdates.forceUpdate(function(error) {
-    if (error) {
-        console.error('Install failed:', error.error.message);
-    } else {
-        console.log('✅ Installed, reloading...');
-    }
-});
-```
-
-**Important:**
-- Must call `getUpdate()` first
-- WebView reloads automatically after ~1 second
-- Call `canary()` after reload to confirm success
-
-#### 3. `canary(version, callback)`
-
-Confirms bundle loaded successfully. **REQUIRED on every app start!**
-
-```javascript
-window.HotUpdates.canary('2.7.8', function() {
-    console.log('✅ Canary confirmed');
-});
-```
-
-**Critical:**
-- Must be called within 20 seconds after app start
-- If not called: automatic rollback to previous version
-- Failed version is added to ignore list
-
-#### 4. `getIgnoreList(callback)`
-
-Returns list of versions that caused problems.
-
-```javascript
-window.HotUpdates.getIgnoreList(function(result) {
-    const badVersions = result.versions; // ["2.7.5", "2.7.6"]
-
-    // Check before downloading
-    if (!badVersions.includes(newVersion)) {
-        // Safe to download
-    }
-});
-```
-
-**Note:** IgnoreList is informational only - you decide whether to skip versions.
-
-## 🖥️ Server Requirements
-
-Your server should provide:
-
-### Check Endpoint
-
-**GET** `/api/updates/check?version={current}&platform=ios`
-
-```json
-{
-  "hasUpdate": true,
-  "newVersion": "2.7.8",
-  "downloadURL": "https://server.com/updates/2.7.8.zip",
-  "minAppVersion": "2.7.0"
+            }
+            // If user declines, update auto-installs on next launch
+        }
+    });
 }
 ```
 
-### Update Package
+## API Reference
 
-ZIP file containing `www` folder:
+All API methods are available via `window.hotUpdate` after the `deviceready` event.
 
+### window.hotUpdate.getUpdate(options, callback)
+
+Downloads update from server.
+
+Downloads ZIP from provided URL and saves to two locations:
+- `temp_downloaded_update` (for immediate installation via `forceUpdate()`)
+- `pending_update` (for auto-installation on next app launch)
+
+If version already downloaded, returns success without re-downloading.
+
+**Does NOT check ignoreList** - JavaScript controls all installation decisions.
+
+**Parameters:**
+- `options` (Object):
+  - `url` (string, required) - URL to download ZIP archive
+  - `version` (string, optional) - Version string
+- `callback` (Function) - `callback(error)`
+  - `null` on success
+  - `{error: {message?: string}}` on error
+
+**Example:**
+```javascript
+window.hotUpdate.getUpdate({
+    url: 'https://your-server.com/updates/2.0.0.zip',
+    version: '2.0.0'
+}, function(error) {
+    if (error) {
+        console.error('Download failed:', error);
+    } else {
+        console.log('Update downloaded successfully');
+    }
+});
+```
+
+---
+
+### window.hotUpdate.forceUpdate(callback)
+
+Installs downloaded update immediately and reloads WebView.
+
+**Process:**
+1. Backup current version to `www_previous`
+2. Copy downloaded update to `Documents/www`
+3. Clear WebView cache (disk, memory, Service Worker)
+4. Reload WebView
+5. Start 20-second canary timer
+
+**IMPORTANT:** JavaScript MUST call `canary(version)` within 20 seconds after reload to confirm successful bundle load. Otherwise automatic rollback occurs.
+
+**Does NOT check ignoreList** - JavaScript decides what to install.
+
+**Parameters:**
+- `callback` (Function) - `callback(error)`
+  - `null` on success (before WebView reload)
+  - `{error: {message?: string}}` on error
+
+**Example:**
+```javascript
+window.hotUpdate.forceUpdate(function(error) {
+    if (error) {
+        console.error('Install failed:', error);
+    } else {
+        console.log('Update installing, WebView will reload...');
+    }
+});
+```
+
+---
+
+### window.hotUpdate.canary(version, callback)
+
+Confirms successful bundle load after update.
+
+**MUST be called within 20 seconds** after `forceUpdate()` to stop canary timer and prevent automatic rollback.
+
+**If not called within 20 seconds:**
+- Automatic rollback to previous version
+- Failed version added to ignoreList
+- WebView reloaded with previous version
+
+**Parameters:**
+- `version` (string) - Version that loaded successfully
+- `callback` (Function, optional) - Not used, method is synchronous
+
+**Example:**
+```javascript
+document.addEventListener('deviceready', function() {
+    var version = localStorage.getItem('app_version') || '1.0.0';
+    window.hotUpdate.canary(version);
+}, false);
+```
+
+---
+
+### window.hotUpdate.getIgnoreList(callback)
+
+Returns list of problematic versions (information only).
+
+**This is an INFORMATION-ONLY system** - native does NOT block installation. JavaScript should read this list and decide whether to skip these versions.
+
+Native automatically adds versions to this list when rollback occurs.
+
+**Parameters:**
+- `callback` (Function) - `callback(result)`
+  - `result`: `{versions: string[]}` - Array of problematic version strings
+
+**Example:**
+```javascript
+window.hotUpdate.getIgnoreList(function(result) {
+    console.log('Problematic versions:', result.versions);
+
+    if (result.versions.includes(newVersion)) {
+        console.log('Skipping known problematic version');
+    }
+});
+```
+
+---
+
+## Complete Update Flow
+
+```javascript
+// Step 1: Check for updates on your server
+function checkForUpdates() {
+    var currentVersion = localStorage.getItem('app_version') || '1.0.0';
+
+    fetch('https://your-server.com/api/check-update?version=' + currentVersion)
+        .then(response => response.json())
+        .then(data => {
+            if (data.hasUpdate) {
+                // Step 2: Check ignoreList
+                window.hotUpdate.getIgnoreList(function(ignoreList) {
+                    if (ignoreList.versions.includes(data.version)) {
+                        console.log('Skipping problematic version');
+                        return;
+                    }
+
+                    // Step 3: Download
+                    window.hotUpdate.getUpdate({
+                        url: data.downloadUrl,
+                        version: data.version
+                    }, function(error) {
+                        if (!error) {
+                            // Step 4: Prompt user
+                            if (confirm('Update available. Install now?')) {
+                                // Save version for canary check
+                                localStorage.setItem('app_version', data.version);
+
+                                // Step 5: Install
+                                window.hotUpdate.forceUpdate(function(error) {
+                                    // WebView will reload
+                                });
+                            }
+                            // If declined, auto-installs on next launch
+                        }
+                    });
+                });
+            }
+        });
+}
+
+// Step 6: After reload, confirm success
+document.addEventListener('deviceready', function() {
+    var version = localStorage.getItem('app_version') || '1.0.0';
+    window.hotUpdate.canary(version); // Must call within 20 seconds!
+
+    initApp();
+}, false);
+```
+
+## How It Works
+
+### Update Flow
+
+1. **Download** (`getUpdate()`):
+   - Downloads ZIP from URL
+   - Validates `www` folder structure
+   - Saves to TWO locations:
+     - `temp_downloaded_update` (for immediate install)
+     - `pending_update` (for auto-install on next launch)
+
+2. **Installation Options**:
+   - **Immediate**: User clicks "Update" → `forceUpdate()` installs now
+   - **Deferred**: User ignores → Auto-installs on next app launch
+
+3. **Rollback Protection**:
+   - Previous version backed up before installation
+   - 20-second canary timer starts after reload
+   - If `canary()` not called → automatic rollback
+   - Failed version added to ignoreList
+
+4. **IgnoreList System**:
+   - Native tracks failed versions
+   - JavaScript reads via `getIgnoreList()`
+   - **Does NOT block** - JS decides what to install
+
+### Storage Structure
+
+```
+Documents/
+├── www/                    // Active version
+├── www_previous/           // Previous version (rollback)
+├── pending_update/         // Next launch auto-install
+└── temp_downloaded_update/ // Immediate install
+```
+
+### Version Management
+
+- **appBundleVersion** - Native app version from Info.plist
+- **installedVersion** - Current hot update version
+- **previousVersion** - Last working version (rollback)
+
+## Update Server API
+
+Your server should provide:
+
+**Check API:**
+```
+GET https://your-server.com/api/check-update?version=1.0.0&platform=ios
+
+Response:
+{
+  "hasUpdate": true,
+  "version": "2.0.0",
+  "downloadUrl": "https://your-server.com/updates/2.0.0.zip",
+  "minAppVersion": "2.7.0",
+  "releaseNotes": "Bug fixes"
+}
+```
+
+**Update ZIP Structure:**
 ```
 update.zip
 └── www/
@@ -205,105 +329,131 @@ update.zip
     └── ...
 ```
 
-## 🔧 How It Works
+## Best Practices
 
-### Two-Step Update Flow
+### 1. Always Call Canary
 
-```
-1. JS checks YOUR server for updates
-2. getUpdate() downloads ZIP in background
-3. Show popup to user
-4. User clicks "Update": forceUpdate() installs immediately
-5. User ignores: update auto-installs on next app launch
-6. WebView reloads with new content
-7. JS calls canary() to confirm success
+```javascript
+document.addEventListener('deviceready', function() {
+    var version = localStorage.getItem('app_version');
+    window.hotUpdate.canary(version); // Within 20 seconds!
+}, false);
 ```
 
-### Rollback Protection
+### 2. Check IgnoreList
 
-- 20-second canary timer starts after update
-- If `canary()` not called → automatic rollback
-- Failed version added to ignore list
-- App continues working on previous version
-
-### File Structure
-
-```
-Documents/
-├── www/                     # Active version
-├── www_previous/            # Backup (for rollback)
-├── pending_update/          # Next launch auto-install
-└── temp_downloaded_update/  # Immediate install
+```javascript
+window.hotUpdate.getIgnoreList(function(result) {
+    if (result.versions.includes(newVersion)) {
+        console.log('Known problematic version');
+    }
+});
 ```
 
-## 📖 Full Documentation
+### 3. Handle Errors
 
-- **[docs/README.md](docs/README.md)** - Quick start guide
-- **[docs/API.md](docs/API.md)** - Complete API reference
-- **[docs/hot-updates-admin.html](docs/hot-updates-admin.html)** - Testing interface
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Updates not working**
-- Check `canary()` is called on every app start
-- Verify server URL returns correct JSON
-- Check iOS device logs for errors
-
-**Duplicate downloads**
-- ✅ Fixed in v2.1.0! `getUpdate()` now checks installed version
-
-**WebView shows old content**
-- ✅ Fixed in v2.1.0! Cache is cleared before reload
-
-**CocoaPods errors**
-```bash
-cd platforms/ios
-pod install
-cordova clean ios && cordova build ios
+```javascript
+window.hotUpdate.getUpdate(options, function(error) {
+    if (error) {
+        analytics.track('update_failed', {error: error.message});
+        showUserMessage('Update failed');
+    }
+});
 ```
 
-### Debug Logs
+### 4. Store Version
 
-All plugin actions are logged with `[HotUpdates]` prefix:
+```javascript
+// Before forceUpdate
+localStorage.setItem('app_version', newVersion);
 
-```bash
-# iOS Simulator
-cordova run ios --debug
-
-# iOS Device
-# Use Xcode console or Safari Web Inspector
+// After reload
+var version = localStorage.getItem('app_version');
+window.hotUpdate.canary(version);
 ```
 
-## ⚠️ Important Notes
+## Troubleshooting
 
-- **iOS Only**: Currently supports iOS platform only
-- **Manual Updates Only**: No automatic background checking (you control everything)
-- **App Store Compliance**: Only update web content, not native code
-- **HTTPS Required**: Update server should use HTTPS in production
-- **Testing**: Test rollback mechanism thoroughly
+### Update doesn't install
 
-## 🤝 Contributing
+- Check ZIP structure (must have `www/` folder)
+- Check URL accessibility
+- Check Xcode console: `[HotUpdates] ...`
 
-Contributions are welcome! Please submit a Pull Request.
+### Automatic rollback
 
-## 📝 License
+**Cause:** `canary()` not called within 20 seconds
 
-This project is licensed under the Custom Non-Commercial License - see the [LICENSE](LICENSE) file for details.
+**Solution:** Call immediately in `deviceready`:
+```javascript
+document.addEventListener('deviceready', function() {
+    window.hotUpdate.canary(version); // First thing!
+}, false);
+```
 
-**⚠️ Commercial use is strictly prohibited without explicit written permission from the copyright holder.**
+### window.hotUpdate is undefined
 
-For commercial licensing inquiries, please contact: **Mustafin Vladimir** <outvova.gor@gmail.com>
+**Cause:** Called before `deviceready`
 
-## 🙋‍♂️ Support
+**Solution:**
+```javascript
+document.addEventListener('deviceready', function() {
+    console.log(window.hotUpdate); // Now available
+}, false);
+```
 
-- **Issues**: [GitHub Issues](https://github.com/vladimirDarksy/Cordova_hot_update/issues)
-- **npm**: [cordova-plugin-hot-updates](https://www.npmjs.com/package/cordova-plugin-hot-updates)
+## Migration from v1.0.0
 
----
+**Removed methods:**
+- `getCurrentVersion()` - Manage in JS
+- `getPendingUpdateInfo()` - Not needed
+- `checkForUpdates()` - Frontend controls
+- `downloadUpdate()` - Use `getUpdate()`
+- `installUpdate()` - Use `forceUpdate()`
 
-**Made with ❤️ by [Mustafin Vladimir](https://github.com/vladimirDarksy)**
+**New API:**
+- `window.hotUpdate.getUpdate({url, version?}, callback)`
+- `window.hotUpdate.forceUpdate(callback)`
+- `window.hotUpdate.canary(version, callback)`
+- `window.hotUpdate.getIgnoreList(callback)`
 
-**Version:** 2.1.1 | **Last Updated:** 2025-11-04
+**Changes:**
+- API via `window.hotUpdate` (not `window.HotUpdates`)
+- Callback signature: `callback(error)` pattern
+- No automatic background checking
+
+## Changelog
+
+### v2.1.2 (2025-11-13)
+
+**Breaking Changes:**
+- Changed API from `window.HotUpdates` to `window.hotUpdate`
+- Removed automatic update checking
+- Simplified to 4 methods: `getUpdate`, `forceUpdate`, `canary`, `getIgnoreList`
+
+**New Features:**
+- Frontend-controlled manual updates
+- Two-step update flow
+- 20-second canary timer
+- IgnoreList system
+- Auto-install on next launch
+- WebView cache clearing
+
+### v1.0.0
+
+- Initial release
+
+## License
+
+Custom Non-Commercial License - See [LICENSE](LICENSE) file
+
+## Author
+
+**Mustafin Vladimir**
+- GitHub: [@vladimirDarksy](https://github.com/vladimirDarksy)
+- Email: outvova.gor@gmail.com
+
+## Support
+
+- Issues: https://github.com/vladimirDarksy/Cordova_hot_update/issues
+- Repository: https://github.com/vladimirDarksy/Cordova_hot_update

@@ -63,11 +63,15 @@ dist/
 
 # Claude and AI tools
 .claude/
+.context/
 
-# Documentation (keep only README.md)
+# Editor config
+.editorconfig
+.npmrc
+
+# Documentation (keep only README.md and CHANGELOG.md)
 docs/
 CONTRIBUTING.md
-CHANGELOG.md
 
 # Keep these files (they are already in package.json "files" field):
 # - www/

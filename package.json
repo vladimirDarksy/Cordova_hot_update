@@ -1,7 +1,7 @@
 {
   "name": "cordova-plugin-hot-updates",
-  "version": "2.1.1",
-  "description": "Cordova plugin for frontend-controlled over-the-air (OTA) hot updates using WebView Reload approach. Enables seamless web content updates without requiring App Store approval.",
+  "version": "2.1.2",
+  "description": "Frontend-controlled manual hot updates for Cordova iOS apps using WebView Reload approach. Manual updates only, JavaScript controls all decisions.",
   "main": "www/HotUpdates.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -23,6 +23,7 @@
     "over-the-air",
     "webview",
     "reload",
+    "manual",
     "ecosystem:cordova",
     "cordova-ios",
     "mobile",
@@ -58,10 +59,8 @@
     "www/",
     "src/",
     "scripts/",
-    "docs/",
     "plugin.xml",
     "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
+    "LICENSE"
   ]
 }

@@ -1,16 +1,17 @@
 <?xml version='1.0' encoding='utf-8'?>
 <plugin id="cordova-plugin-hot-updates"
-        version="1.0.0"
+        version="2.1.2"
         xmlns="http://apache.org/cordova/ns/plugins/1.0"
         xmlns:android="http://schemas.android.com/apk/res/android">
 
     <name>Cordova Hot Updates Plugin</name>
     <description>
-        Cordova plugin for automatic over-the-air (OTA) hot updates using WebView Reload approach.
+        Cordova plugin for frontend-controlled manual hot updates using WebView Reload approach.
+        Manual updates only, JavaScript controls all decisions.
         Enables seamless web content updates without requiring App Store approval.
     </description>
     <license>Custom Non-Commercial</license>
-    <keywords>cordova,hot,updates,ota,over-the-air,webview,reload</keywords>
+    <keywords>cordova,hot,updates,ota,over-the-air,webview,reload,manual</keywords>
     <repo>https://github.com/vladimirDarksy/Cordova_hot_update.git</repo>
     <issue>https://github.com/vladimirDarksy/Cordova_hot_update/issues</issue>
 
@@ -23,7 +24,7 @@
 
     <!-- JavaScript interface -->
     <js-module src="www/HotUpdates.js" name="HotUpdates">
-        <clobbers target="HotUpdates" />
+        <clobbers target="hotUpdate" />
     </js-module>
 
     <!-- iOS platform -->
@@ -62,12 +63,6 @@
                 <true/>
             </dict>
         </edit-config>
-
-        <!-- Configuration preferences with default values -->
-        <preference name="hot_updates_server_url" default="https://your-server.com/api/updates" />
-        <preference name="hot_updates_check_interval" default="300000" />
-        <preference name="hot_updates_auto_download" default="true" />
-        <preference name="hot_updates_auto_install" default="true" />
     </platform>
 
     <!-- Android platform (placeholder for future implementation) -->

@@ -12,8 +12,8 @@
  *          - IgnoreList for tracking problematic versions
  *          - Auto-install pending updates on next app launch
  *
- * @version 2.1.0
- * @date 2025-11-03
+ * @version 2.1.2
+ * @date 2025-11-13
  * @author Mustafin Vladimir
  * @copyright Copyright (c) 2025. All rights reserved.
  */
