@@ -2,7 +2,7 @@
  * @file HotUpdates+Helpers.h
  * @brief Helper methods for Hot Updates Plugin
  * @details Category extension providing utility methods for error handling
- * @version 2.2.0
+ * @version 2.1.0
  * @date 2025-11-13
  * @author Mustafin Vladimir
  * @copyright Copyright (c) 2025. All rights reserved.

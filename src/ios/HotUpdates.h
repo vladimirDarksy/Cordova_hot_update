@@ -32,39 +32,13 @@
     NSString *previousVersionPath;    // Путь к предыдущей версии
 }
 
-// Plugin lifecycle methods
-- (void)pluginInitialize;
-- (void)loadConfiguration;
-- (void)initializeWWWFolder;
-- (void)checkAndInstallPendingUpdate;
-- (void)switchToUpdatedContentWithReload;
-- (void)reloadWebView;
-
-// Update management methods (internal)
-- (void)installPendingUpdate:(NSString*)newVersion;
-- (BOOL)unzipFile:(NSString *)zipPath toDestination:(NSString *)destinationPath;
-
-// Version comparison utilities
-- (NSComparisonResult)compareVersion:(NSString*)version1 withVersion:(NSString*)version2;
-
-// JavaScript callable methods (minimal set for debugging)
-- (void)getCurrentVersion:(CDVInvokedUrlCommand*)command;
-- (void)getPendingUpdateInfo:(CDVInvokedUrlCommand*)command;
-
-// Ignore List management (JS can only read, native controls)
-- (void)getIgnoreList:(CDVInvokedUrlCommand*)command;
-
-// Debug methods (for manual testing only)
-- (void)addToIgnoreList:(CDVInvokedUrlCommand*)command;
-- (void)removeFromIgnoreList:(CDVInvokedUrlCommand*)command;
-- (void)clearIgnoreList:(CDVInvokedUrlCommand*)command;
-
-// Update methods (v2.1.0 - manual updates only)
+// JavaScript API methods (v2.1.0)
 - (void)getUpdate:(CDVInvokedUrlCommand*)command;      // Download update
 - (void)forceUpdate:(CDVInvokedUrlCommand*)command;    // Install downloaded update
 - (void)canary:(CDVInvokedUrlCommand*)command;         // Confirm successful load
+- (void)getIgnoreList:(CDVInvokedUrlCommand*)command;  // Get ignore list (JS reads only)
 
-// Debug methods
+// Debug method
 - (void)getVersionInfo:(CDVInvokedUrlCommand*)command; // Get all version info for debugging
 
 @end

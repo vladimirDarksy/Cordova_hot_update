@@ -1,73 +1,80 @@
 var exec = require('cordova/exec');
 
 /**
- * Cordova Hot Updates Plugin v2.1.2
+ * Cordova Hot Updates Plugin v2.2.1
  * Frontend-controlled manual hot updates for iOS
  *
- * Provides manual over-the-air (OTA) updates for Cordova applications
- * using the WebView Reload approach. All update decisions are controlled
- * by JavaScript - the native plugin only executes commands.
- *
- * Features:
- * - Frontend-controlled manual updates (no automatic checking)
- * - Two-step update flow: getUpdate() downloads, forceUpdate() installs
- * - Automatic rollback with 20-second canary timer
- * - IgnoreList system for tracking problematic versions (information only)
- * - Auto-install pending updates on next app launch
- * - WebView reload approach for instant updates without app restart
- * - No App Store approval required for web content updates
- *
- * @version 2.1.2
+ * @version 2.2.1
  * @author Mustafin Vladimir
  */
+
+/**
+ * Error codes returned by the plugin
+ * @readonly
+ * @enum {string}
+ */
+var ErrorCodes = {
+    // getUpdate errors
+    UPDATE_DATA_REQUIRED: 'UPDATE_DATA_REQUIRED',
+    URL_REQUIRED: 'URL_REQUIRED',
+    DOWNLOAD_IN_PROGRESS: 'DOWNLOAD_IN_PROGRESS',
+    DOWNLOAD_FAILED: 'DOWNLOAD_FAILED',
+    HTTP_ERROR: 'HTTP_ERROR',
+    TEMP_DIR_ERROR: 'TEMP_DIR_ERROR',
+    EXTRACTION_FAILED: 'EXTRACTION_FAILED',
+    WWW_NOT_FOUND: 'WWW_NOT_FOUND',
+    // forceUpdate errors
+    NO_UPDATE_READY: 'NO_UPDATE_READY',
+    UPDATE_FILES_NOT_FOUND: 'UPDATE_FILES_NOT_FOUND',
+    INSTALL_FAILED: 'INSTALL_FAILED',
+    // canary errors
+    VERSION_REQUIRED: 'VERSION_REQUIRED'
+};
+
 var HotUpdates = {
+
+    /**
+     * Error codes enum
+     * @type {Object}
+     */
+    ErrorCodes: ErrorCodes,
 
     /**
      * Download update from server
      *
-     * Downloads update ZIP archive from the provided URL and saves to two locations:
-     * - temp_downloaded_update (for immediate installation via forceUpdate)
-     * - pending_update (for auto-installation on next app launch)
-     *
-     * If the specified version is already downloaded, returns success without re-downloading.
-     * Does NOT check ignoreList - JavaScript controls all installation decisions.
-     *
      * @param {Object} options - Update options
      * @param {string} options.url - URL to download ZIP archive (required)
      * @param {string} [options.version] - Version string (optional)
-     * @param {Function} callback - Callback function
-     *   - Called with null on success
-     *   - Called with {error: {message?: string}} on error
+     * @param {Function} callback - Callback(error)
+     *   - null on success
+     *   - {error: {code: string, message: string}} on error
      *
      * @example
-     * window.hotUpdate.getUpdate({
-     *     url: 'https://your-server.com/updates/2.0.0.zip',
-     *     version: '2.0.0'
-     * }, function(error) {
-     *     if (error) {
-     *         console.error('Download failed:', error);
-     *     } else {
-     *         console.log('Update downloaded successfully');
-     *         // Can now call forceUpdate() to install immediately
-     *         // Or user can ignore and it will auto-install on next launch
-     *     }
+     * hotUpdate.getUpdate({url: 'https://server.com/update.zip', version: '2.0.0'}, function(err) {
+     *     if (err) console.error(err.error.code, err.error.message);
+     *     else console.log('Downloaded');
      * });
      */
     getUpdate: function(options, callback) {
-        if (!options || !options.url) {
+        if (!options) {
             if (callback) {
-                callback({error: {message: 'URL is required'}});
+                callback({error: {code: ErrorCodes.UPDATE_DATA_REQUIRED, message: 'Update data required'}});
+            }
+            return;
+        }
+
+        if (!options.url) {
+            if (callback) {
+                callback({error: {code: ErrorCodes.URL_REQUIRED, message: 'URL is required'}});
             }
             return;
         }
 
         exec(
             function() {
-                // Success
                 if (callback) callback(null);
             },
             function(error) {
-                // Error
                 if (callback) callback({error: error});
             },
             'HotUpdates',
@@ -79,42 +86,22 @@ var HotUpdates = {
     /**
      * Install downloaded update immediately
      *
-     * Installs the update that was downloaded via getUpdate().
-     * This will:
-     * 1. Backup current version to www_previous
-     * 2. Copy downloaded update to Documents/www
-     * 3. Clear WebView cache (disk, memory, Service Worker)
-     * 4. Reload WebView
-     * 5. Start 20-second canary timer
-     *
-     * IMPORTANT: JavaScript MUST call canary(version) within 20 seconds
-     * after reload to confirm successful bundle load. Otherwise automatic
-     * rollback will occur.
-     *
-     * Does NOT check ignoreList - JavaScript decides what to install.
-     *
-     * @param {Function} callback - Callback function
-     *   - Called with null on success (before WebView reload)
-     *   - Called with {error: {message?: string}} on error
+     * @param {Function} callback - Callback(error)
+     *   - null on success (WebView will reload)
+     *   - {error: {code: string, message: string}} on error
      *
      * @example
-     * window.hotUpdate.forceUpdate(function(error) {
-     *     if (error) {
-     *         console.error('Install failed:', error);
-     *     } else {
-     *         console.log('Update installing, WebView will reload...');
-     *         // After reload, MUST call canary() within 20 seconds!
-     *     }
+     * hotUpdate.forceUpdate(function(err) {
+     *     if (err) console.error(err.error.code);
+     *     // WebView reloads, call canary() within 20 sec
      * });
      */
     forceUpdate: function(callback) {
         exec(
             function() {
-                // Success
                 if (callback) callback(null);
             },
             function(error) {
-                // Error
                 if (callback) callback({error: error});
             },
             'HotUpdates',
@@ -124,36 +111,30 @@ var HotUpdates = {
     },
 
     /**
-     * Confirm successful bundle load (canary check)
+     * Confirm successful bundle load (MUST call within 20 sec after forceUpdate)
      *
-     * MUST be called within 20 seconds after forceUpdate() to confirm
-     * that the new bundle loaded successfully. This stops the canary timer
-     * and prevents automatic rollback.
-     *
-     * If not called within 20 seconds:
-     * - Automatic rollback to previous version
-     * - Failed version added to ignoreList
-     * - WebView reloaded with previous version
-     *
-     * Call this immediately after your app initialization completes.
-     *
-     * @param {string} version - Version that loaded successfully
-     * @param {Function} [callback] - Optional callback (not used, method is synchronous)
+     * @param {string} version - Current version
+     * @param {Function} [callback] - Optional callback
      *
      * @example
-     * // Call as early as possible after app loads
      * document.addEventListener('deviceready', function() {
-     *     window.hotUpdate.canary('2.0.0');
-     *     console.log('Canary confirmed, update successful');
-     * }, false);
+     *     hotUpdate.canary('2.0.0');
+     * });
      */
     canary: function(version, callback) {
+        if (!version) {
+            if (callback) {
+                callback({error: {code: ErrorCodes.VERSION_REQUIRED, message: 'Version is required'}});
+            }
+            return;
+        }
+
         exec(
             function() {
-                if (callback) callback();
+                if (callback) callback(null);
             },
-            function() {
-                if (callback) callback();
+            function(error) {
+                if (callback) callback({error: error});
             },
             'HotUpdates',
             'canary',
@@ -162,48 +143,60 @@ var HotUpdates = {
     },
 
     /**
-     * Get list of problematic versions (information only)
+     * Get list of problematic versions
      *
-     * Returns array of version strings that failed to load (triggered rollback).
-     * This is an INFORMATION-ONLY system - native does NOT block installation
-     * of versions in this list.
-     *
-     * JavaScript should read this list and decide whether to skip downloading/
-     * installing these versions. If JS decides to install a version from the
-     * ignoreList, that's allowed (per TS requirements).
-     *
-     * Native automatically adds versions to this list when rollback occurs.
-     * JavaScript cannot modify the list (no add/remove/clear methods per TS v2.1.0).
-     *
-     * @param {Function} callback - Callback function
-     *   - Called with {versions: string[]} - Array of problematic version strings
+     * @param {Function} callback - Callback({versions: string[]})
      *
      * @example
-     * window.hotUpdate.getIgnoreList(function(result) {
-     *     console.log('Problematic versions:', result.versions);
-     *     // Example: {versions: ['1.9.0', '2.0.1']}
-     *
-     *     // JavaScript decides what to do with this information
-     *     var shouldSkip = result.versions.includes(availableVersion);
-     *     if (shouldSkip) {
-     *         console.log('Skipping known problematic version');
-     *     } else {
-     *         // Download and install
+     * hotUpdate.getIgnoreList(function(result) {
+     *     if (result.versions.includes(newVersion)) {
+     *         console.log('Version is blacklisted');
      *     }
      * });
      */
     getIgnoreList: function(callback) {
         exec(
-            function(versions) {
-                // Success - native returns array of version strings
-                if (callback) callback({versions: versions || []});
+            function(result) {
+                if (callback) callback(result || {versions: []});
             },
-            function(error) {
-                // Error - return empty list
+            function() {
                 if (callback) callback({versions: []});
             },
             'HotUpdates',
             'getIgnoreList',
+            []
+        );
+    },
+
+    /**
+     * Get version info (debug method)
+     *
+     * @param {Function} callback - Callback with version info
+     *   {
+     *     appBundleVersion: string,
+     *     installedVersion: string|null,
+     *     previousVersion: string|null,
+     *     canaryVersion: string|null,
+     *     pendingVersion: string|null,
+     *     hasPendingUpdate: boolean,
+     *     ignoreList: string[]
+     *   }
+     *
+     * @example
+     * hotUpdate.getVersionInfo(function(info) {
+     *     console.log('Current:', info.installedVersion || info.appBundleVersion);
+     * });
+     */
+    getVersionInfo: function(callback) {
+        exec(
+            function(info) {
+                if (callback) callback(info);
+            },
+            function(error) {
+                if (callback) callback({error: error});
+            },
+            'HotUpdates',
+            'getVersionInfo',
             []
         );
     }

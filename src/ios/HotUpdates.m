@@ -12,8 +12,8 @@
  *          - IgnoreList for tracking problematic versions
  *          - Auto-install pending updates on next app launch
  *
- * @version 2.2.0
- * @date 2025-11-03
+ * @version 2.1.2
+ * @date 2025-11-26
  * @author Mustafin Vladimir
  * @copyright Copyright (c) 2025. All rights reserved.
  */
@@ -56,6 +56,10 @@ static BOOL hasPerformedInitialReload = NO;
     [self loadConfiguration];
     [self loadIgnoreList];
 
+    // Сбрасываем флаг загрузки (если приложение было убито во время загрузки)
+    isDownloadingUpdate = NO;
+    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:kDownloadInProgress];
+
     isUpdateReadyToInstall = NO;
     pendingUpdateURL = nil;
     pendingUpdateVersion = nil;
@@ -83,11 +87,7 @@ static BOOL hasPerformedInitialReload = NO;
         if (!canaryVersion || ![canaryVersion isEqualToString:currentVersion]) {
             NSLog(@"[HotUpdates] Starting canary timer (20 seconds) for version %@", currentVersion);
 
-            canaryTimer = [NSTimer scheduledTimerWithTimeInterval:20.0
-                                                           target:self
-                                                         selector:@selector(canaryTimeout)
-                                                         userInfo:nil
-                                                          repeats:NO];
+            [self startCanaryTimer];
         } else {
             NSLog(@"[HotUpdates] Canary already confirmed for version %@", currentVersion);
         }
@@ -113,7 +113,6 @@ static BOOL hasPerformedInitialReload = NO;
 - (void)checkAndInstallPendingUpdate {
     BOOL hasPendingUpdate = [[NSUserDefaults standardUserDefaults] boolForKey:kHasPending];
     NSString *pendingVersion = [[NSUserDefaults standardUserDefaults] stringForKey:kPendingVersion];
-    NSString *installedVersion = [[NSUserDefaults standardUserDefaults] stringForKey:kInstalledVersion];
 
     if (hasPendingUpdate && pendingVersion) {
         NSLog(@"[HotUpdates] Installing pending update %@ to Documents/www (auto-install on launch)", pendingVersion);
@@ -174,11 +173,13 @@ static BOOL hasPerformedInitialReload = NO;
             ((CDVViewController *)self.viewController).wwwFolderName = documentsWwwPath;
             NSLog(@"[HotUpdates] Changed wwwFolderName to: %@", documentsWwwPath);
 
-            [self reloadWebView];
-
             hasPerformedInitialReload = YES;
 
-            NSLog(@"[HotUpdates] WebView reloaded with updated content (version: %@)", installedVersion);
+            // Очищаем кэш перед перезагрузкой, иначе может загрузиться старая версия
+            [self clearWebViewCacheWithCompletion:^{
+                [self reloadWebView];
+                NSLog(@"[HotUpdates] WebView reloaded with updated content (version: %@)", installedVersion);
+            }];
         } else {
             NSLog(@"[HotUpdates] Documents/www/index.html not found, keeping bundle www");
         }
@@ -189,10 +190,18 @@ static BOOL hasPerformedInitialReload = NO;
 }
 
 /*!
- * @brief Force reload the WebView
- * @details Uses WKWebView loadFileURL with proper sandbox permissions
+ * @brief Clear WebView cache
+ * @details Clears disk cache, memory cache, offline storage and service workers
  */
 - (void)clearWebViewCache {
+    [self clearWebViewCacheWithCompletion:nil];
+}
+
+/*!
+ * @brief Clear WebView cache with completion handler
+ * @param completion Block called after cache is cleared (on main thread)
+ */
+- (void)clearWebViewCacheWithCompletion:(void (^)(void))completion {
     NSLog(@"[HotUpdates] Clearing WebView cache");
 
     NSSet *websiteDataTypes = [NSSet setWithArray:@[
@@ -207,6 +216,9 @@ static BOOL hasPerformedInitialReload = NO;
                                                modifiedSince:dateFrom
                                            completionHandler:^{
         NSLog(@"[HotUpdates] WebView cache cleared");
+        if (completion) {
+            dispatch_async(dispatch_get_main_queue(), completion);
+        }
     }];
 }
 
@@ -397,6 +409,28 @@ static BOOL hasPerformedInitialReload = NO;
     [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
 }
 
+#pragma mark - Canary Timer
+
+/*!
+ * @brief Start canary timer with weak self to prevent retain cycle
+ * @details Uses block-based timer (iOS 10+) with weak reference
+ */
+- (void)startCanaryTimer {
+    // Инвалидируем предыдущий таймер если есть
+    if (canaryTimer && [canaryTimer isValid]) {
+        [canaryTimer invalidate];
+        canaryTimer = nil;
+    }
+
+    // Используем weak self для предотвращения retain cycle
+    __weak __typeof__(self) weakSelf = self;
+    canaryTimer = [NSTimer scheduledTimerWithTimeInterval:20.0
+                                                  repeats:NO
+                                                    block:^(NSTimer * _Nonnull timer) {
+        [weakSelf canaryTimeout];
+    }];
+}
+
 #pragma mark - Canary Timeout Handler
 
 - (void)canaryTimeout {
@@ -412,10 +446,7 @@ static BOOL hasPerformedInitialReload = NO;
 
     NSLog(@"[HotUpdates] Version %@ considered faulty, performing rollback", currentVersion);
 
-    if (currentVersion) {
-        [self addVersionToIgnoreList:currentVersion];
-    }
-
+    // Примечание: версия добавляется в ignoreList внутри rollbackToPreviousVersion
     BOOL rollbackSuccess = [self rollbackToPreviousVersion];
 
     if (rollbackSuccess) {
@@ -423,8 +454,9 @@ static BOOL hasPerformedInitialReload = NO;
 
         hasPerformedInitialReload = NO;
 
-        [self clearWebViewCache];
-        [self reloadWebView];
+        [self clearWebViewCacheWithCompletion:^{
+            [self reloadWebView];
+        }];
     } else {
         NSLog(@"[HotUpdates] Automatic rollback failed");
     }
@@ -542,7 +574,11 @@ static BOOL hasPerformedInitialReload = NO;
 #pragma mark - Get Update (Download Only)
 
 - (void)getUpdate:(CDVInvokedUrlCommand*)command {
-    NSDictionary *updateData = [command.arguments objectAtIndex:0];
+    // Безопасное получение первого аргумента
+    NSDictionary *updateData = nil;
+    if (command.arguments.count > 0 && [command.arguments[0] isKindOfClass:[NSDictionary class]]) {
+        updateData = command.arguments[0];
+    }
 
     if (!updateData) {
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
@@ -613,15 +649,30 @@ static BOOL hasPerformedInitialReload = NO;
     NSLog(@"[HotUpdates] Starting download");
 
     NSURL *url = [NSURL URLWithString:downloadURL];
+    if (!url) {
+        NSLog(@"[HotUpdates] Invalid URL: %@", downloadURL);
+        isDownloadingUpdate = NO;
+        [[NSUserDefaults standardUserDefaults] setBool:NO forKey:kDownloadInProgress];
+        [[NSUserDefaults standardUserDefaults] synchronize];
+
+        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                                 messageAsDictionary:[self createError:kErrorURLRequired
+                                                                                message:@"Invalid URL format"]];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+        return;
+    }
 
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
-    config.timeoutIntervalForRequest = 60.0;
-    config.timeoutIntervalForResource = 300.0;
+    config.timeoutIntervalForRequest = 30.0;  // ТЗ: 30-60 секунд
+    config.timeoutIntervalForResource = 60.0; // ТЗ: максимум 60 секунд на всю загрузку
 
     NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
 
     NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url
                                                         completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+        // Инвалидируем сессию для предотвращения утечки памяти
+        [session finishTasksAndInvalidate];
+
         self->isDownloadingUpdate = NO;
         [[NSUserDefaults standardUserDefaults] setBool:NO forKey:kDownloadInProgress];
         [[NSUserDefaults standardUserDefaults] synchronize];
@@ -813,6 +864,7 @@ static BOOL hasPerformedInitialReload = NO;
 
     isUpdateReadyToInstall = NO;
     pendingUpdateURL = nil;
+    pendingUpdateVersion = nil;
 
     NSLog(@"[HotUpdates] Update installed successfully");
 
@@ -822,28 +874,24 @@ static BOOL hasPerformedInitialReload = NO;
     // После reloadWebView pluginInitialize НЕ вызывается, поэтому canary timer запускаем вручную
     NSLog(@"[HotUpdates] Starting canary timer (20 seconds) for version %@", newVersion);
 
-    if (canaryTimer && [canaryTimer isValid]) {
-        [canaryTimer invalidate];
-    }
-
-    canaryTimer = [NSTimer scheduledTimerWithTimeInterval:20.0
-                                                   target:self
-                                                 selector:@selector(canaryTimeout)
-                                                 userInfo:nil
-                                                  repeats:NO];
+    [self startCanaryTimer];
 
     hasPerformedInitialReload = NO;
 
     // Очищаем кэш WebView перед перезагрузкой, иначе может загрузиться старая версия
-    [self clearWebViewCache];
-
-    [self reloadWebView];
+    [self clearWebViewCacheWithCompletion:^{
+        [self reloadWebView];
+    }];
 }
 
 #pragma mark - Canary
 
 - (void)canary:(CDVInvokedUrlCommand*)command {
-    NSString *canaryVersion = [command.arguments objectAtIndex:0];
+    // Безопасное получение первого аргумента
+    NSString *canaryVersion = nil;
+    if (command.arguments.count > 0 && [command.arguments[0] isKindOfClass:[NSString class]]) {
+        canaryVersion = command.arguments[0];
+    }
 
     if (!canaryVersion || canaryVersion.length == 0) {
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
@@ -866,12 +914,8 @@ static BOOL hasPerformedInitialReload = NO;
         NSLog(@"[HotUpdates] Canary timer stopped - JS confirmed bundle is working");
     }
 
-    CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
-                                             messageAsDictionary:@{
-        @"success": @YES,
-        @"canaryVersion": canaryVersion,
-        @"message": @"Canary version confirmed"
-    }];
+    // ТЗ: при успехе callback возвращает null
+    CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
 }
 

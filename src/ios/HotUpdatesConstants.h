@@ -1,17 +1,19 @@
 /*!
  * @file HotUpdatesConstants.h
  * @brief Constants for Hot Updates Plugin
- * @details Defines error codes, storage keys, and directory names
- * @version 2.2.0
+ * @details Contains error codes, storage keys, and directory names used by the plugin
+ * @version 2.1.0
  * @date 2025-11-13
  * @author Mustafin Vladimir
  * @copyright Copyright (c) 2025. All rights reserved.
  */
 
-#import <Foundation/Foundation.h>
+#ifndef HotUpdatesConstants_h
+#define HotUpdatesConstants_h
 
 #pragma mark - Error Codes
 
+// Error codes returned to JavaScript
 extern NSString * const kErrorUpdateDataRequired;
 extern NSString * const kErrorURLRequired;
 extern NSString * const kErrorDownloadInProgress;
@@ -27,6 +29,7 @@ extern NSString * const kErrorVersionRequired;
 
 #pragma mark - Storage Keys
 
+// NSUserDefaults keys
 extern NSString * const kInstalledVersion;
 extern NSString * const kPendingVersion;
 extern NSString * const kHasPending;
@@ -39,7 +42,10 @@ extern NSString * const kPendingUpdateReady;
 
 #pragma mark - Directory Names
 
+// Directory names
 extern NSString * const kWWWDirName;
 extern NSString * const kPreviousWWWDirName;
 extern NSString * const kBackupWWWDirName;
 extern NSString * const kPendingUpdateDirName;
+
+#endif /* HotUpdatesConstants_h */

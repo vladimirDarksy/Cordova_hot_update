@@ -2,7 +2,7 @@
  * @file HotUpdatesConstants.m
  * @brief Implementation of constants for Hot Updates Plugin
  * @details Defines all constant values used throughout the plugin
- * @version 2.2.0
+ * @version 2.1.0
  * @date 2025-11-13
  * @author Mustafin Vladimir
  * @copyright Copyright (c) 2025. All rights reserved.

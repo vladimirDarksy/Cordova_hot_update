@@ -1,4 +1,4 @@
-# Cordova Hot Updates Plugin v2.2.0
+# Cordova Hot Updates Plugin v2.2.1
 
 Frontend-controlled manual hot updates for Cordova iOS applications using WebView Reload approach.
 
@@ -125,11 +125,11 @@ callback(null)
 ### Error Handling Example
 
 ```javascript
-window.hotUpdate.getUpdate({url: 'http://...'}, function(error) {
-  if (error) {
-    console.error('[HotUpdates]', error.code, ':', error.message);
+window.hotUpdate.getUpdate({url: 'http://...'}, function(result) {
+  if (result && result.error) {
+    console.error('[HotUpdates]', result.error.code, ':', result.error.message);
 
-    switch(error.code) {
+    switch(result.error.code) {
       case 'HTTP_ERROR':
         // Handle HTTP errors
         break;
@@ -137,7 +137,7 @@ window.hotUpdate.getUpdate({url: 'http://...'}, function(error) {
         // Handle network errors
         break;
       default:
-        console.error('Unknown error:', error);
+        console.error('Unknown error:', result.error);
     }
   } else {
     console.log('Update downloaded successfully');
@@ -263,6 +263,32 @@ window.hotUpdate.getIgnoreList(function(result) {
     if (result.versions.includes(newVersion)) {
         console.log('Skipping known problematic version');
     }
+});
+```
+
+---
+
+### window.hotUpdate.getVersionInfo(callback)
+
+Returns version information (debug method).
+
+**Parameters:**
+- `callback` (Function) - `callback(info)`
+  - `info.appBundleVersion` (string) - Native app version from Info.plist
+  - `info.installedVersion` (string|null) - Current hot update version
+  - `info.previousVersion` (string|null) - Last working version (for rollback)
+  - `info.canaryVersion` (string|null) - Version confirmed by canary
+  - `info.pendingVersion` (string|null) - Version pending installation
+  - `info.hasPendingUpdate` (boolean) - Whether pending update exists
+  - `info.ignoreList` (string[]) - Array of problematic versions
+
+**Example:**
+```javascript
+window.hotUpdate.getVersionInfo(function(info) {
+    console.log('App version:', info.appBundleVersion);
+    console.log('Installed:', info.installedVersion);
+    console.log('Previous:', info.previousVersion);
+    console.log('Pending:', info.hasPendingUpdate ? info.pendingVersion : 'none');
 });
 ```
 
