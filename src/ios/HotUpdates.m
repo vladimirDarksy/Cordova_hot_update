@@ -12,8 +12,8 @@
  *          - IgnoreList for tracking problematic versions
  *          - Auto-install pending updates on next app launch
  *
- * @version 2.1.2
- * @date 2025-11-26
+ * @version 2.2.2
+ * @date 2025-11-28
  * @author Mustafin Vladimir
  * @copyright Copyright (c) 2025. All rights reserved.
  */
@@ -60,21 +60,14 @@ static BOOL hasPerformedInitialReload = NO;
     isDownloadingUpdate = NO;
     [[NSUserDefaults standardUserDefaults] setBool:NO forKey:kDownloadInProgress];
 
-    isUpdateReadyToInstall = NO;
-    pendingUpdateURL = nil;
-    pendingUpdateVersion = nil;
-
+    // Читаем состояние из UserDefaults
     pendingUpdateURL = [[NSUserDefaults standardUserDefaults] stringForKey:kPendingUpdateURL];
     isUpdateReadyToInstall = [[NSUserDefaults standardUserDefaults] boolForKey:kPendingUpdateReady];
     if (isUpdateReadyToInstall) {
         pendingUpdateVersion = [[NSUserDefaults standardUserDefaults] stringForKey:kPendingVersion];
-        NSLog(@"[HotUpdates] Found pending update ready to install: %@", pendingUpdateVersion);
     }
 
-    NSLog(@"[HotUpdates] Startup sequence initiated");
-    NSLog(@"[HotUpdates] Bundle www path: %@", [[NSBundle mainBundle] pathForResource:kWWWDirName ofType:nil]);
-    NSLog(@"[HotUpdates] Documents www path: %@", wwwPath);
-    NSLog(@"[HotUpdates] Ignore list: %@", ignoreList);
+    NSLog(@"[HotUpdates] Initializing plugin...");
 
     [self checkAndInstallPendingUpdate];
     [self initializeWWWFolder];
@@ -85,15 +78,12 @@ static BOOL hasPerformedInitialReload = NO;
         NSString *canaryVersion = [[NSUserDefaults standardUserDefaults] stringForKey:kCanaryVersion];
 
         if (!canaryVersion || ![canaryVersion isEqualToString:currentVersion]) {
-            NSLog(@"[HotUpdates] Starting canary timer (20 seconds) for version %@", currentVersion);
-
+            NSLog(@"[HotUpdates] Starting canary timer for version %@", currentVersion);
             [self startCanaryTimer];
-        } else {
-            NSLog(@"[HotUpdates] Canary already confirmed for version %@", currentVersion);
         }
     }
 
-    NSLog(@"[HotUpdates] Plugin initialized.");
+    NSLog(@"[HotUpdates] Plugin initialized (v%@)", appBundleVersion);
 }
 
 - (void)loadConfiguration {
@@ -101,9 +91,6 @@ static BOOL hasPerformedInitialReload = NO;
     if (!appBundleVersion) {
         appBundleVersion = @"1.0.0";
     }
-
-    NSLog(@"[HotUpdates] Configuration loaded:");
-    NSLog(@"  App bundle version: %@", appBundleVersion);
 }
 
 /*!
@@ -115,7 +102,7 @@ static BOOL hasPerformedInitialReload = NO;
     NSString *pendingVersion = [[NSUserDefaults standardUserDefaults] stringForKey:kPendingVersion];
 
     if (hasPendingUpdate && pendingVersion) {
-        NSLog(@"[HotUpdates] Installing pending update %@ to Documents/www (auto-install on launch)", pendingVersion);
+        NSLog(@"[HotUpdates] Auto-installing pending update: %@", pendingVersion);
 
         [self backupCurrentVersion];
 
@@ -140,9 +127,15 @@ static BOOL hasPerformedInitialReload = NO;
 
                 [[NSFileManager defaultManager] removeItemAtPath:pendingUpdatePath error:nil];
 
-                NSLog(@"[HotUpdates] Update %@ installed successfully (canary timer will start)", pendingVersion);
+                NSLog(@"[HotUpdates] Update %@ installed successfully", pendingVersion);
             } else {
-                NSLog(@"[HotUpdates] Failed to install update: %@", copyError.localizedDescription);
+                NSLog(@"[HotUpdates] Failed to install pending update: %@", copyError.localizedDescription);
+                // Очищаем флаги чтобы не пытаться снова при следующем запуске
+                [[NSUserDefaults standardUserDefaults] setBool:NO forKey:kHasPending];
+                [[NSUserDefaults standardUserDefaults] removeObjectForKey:kPendingVersion];
+                [[NSUserDefaults standardUserDefaults] synchronize];
+                // Удаляем битое обновление
+                [[NSFileManager defaultManager] removeItemAtPath:pendingUpdatePath error:nil];
             }
         }
     }
@@ -156,7 +149,6 @@ static BOOL hasPerformedInitialReload = NO;
 - (void)switchToUpdatedContentWithReload {
     // Предотвращаем повторные перезагрузки при навигации между страницами
     if (hasPerformedInitialReload) {
-        NSLog(@"[HotUpdates] Initial reload already performed, skipping");
         return;
     }
 
@@ -167,24 +159,19 @@ static BOOL hasPerformedInitialReload = NO;
         NSString *indexPath = [documentsWwwPath stringByAppendingPathComponent:@"index.html"];
 
         if ([[NSFileManager defaultManager] fileExistsAtPath:indexPath]) {
-            NSLog(@"[HotUpdates] Using WebView reload approach");
-            NSLog(@"[HotUpdates] Found installed update version: %@", installedVersion);
+            NSLog(@"[HotUpdates] Loading installed version: %@", installedVersion);
 
             ((CDVViewController *)self.viewController).wwwFolderName = documentsWwwPath;
-            NSLog(@"[HotUpdates] Changed wwwFolderName to: %@", documentsWwwPath);
-
             hasPerformedInitialReload = YES;
 
             // Очищаем кэш перед перезагрузкой, иначе может загрузиться старая версия
             [self clearWebViewCacheWithCompletion:^{
                 [self reloadWebView];
-                NSLog(@"[HotUpdates] WebView reloaded with updated content (version: %@)", installedVersion);
             }];
         } else {
-            NSLog(@"[HotUpdates] Documents/www/index.html not found, keeping bundle www");
+            NSLog(@"[HotUpdates] WARNING: Documents/www/index.html not found, using bundle");
         }
     } else {
-        NSLog(@"[HotUpdates] No installed updates, using bundle www");
         hasPerformedInitialReload = YES;
     }
 }
@@ -202,8 +189,6 @@ static BOOL hasPerformedInitialReload = NO;
  * @param completion Block called after cache is cleared (on main thread)
  */
 - (void)clearWebViewCacheWithCompletion:(void (^)(void))completion {
-    NSLog(@"[HotUpdates] Clearing WebView cache");
-
     NSSet *websiteDataTypes = [NSSet setWithArray:@[
         WKWebsiteDataTypeDiskCache,
         WKWebsiteDataTypeMemoryCache,
@@ -215,7 +200,6 @@ static BOOL hasPerformedInitialReload = NO;
     [[WKWebsiteDataStore defaultDataStore] removeDataOfTypes:websiteDataTypes
                                                modifiedSince:dateFrom
                                            completionHandler:^{
-        NSLog(@"[HotUpdates] WebView cache cleared");
         if (completion) {
             dispatch_async(dispatch_get_main_queue(), completion);
         }
@@ -231,26 +215,22 @@ static BOOL hasPerformedInitialReload = NO;
         NSURL *fileURL = [NSURL fileURLWithPath:indexPath];
         NSURL *allowReadAccessToURL = [NSURL fileURLWithPath:documentsWwwPath];
 
-        NSLog(@"[HotUpdates] Loading WebView with new URL: %@", fileURL.absoluteString);
-
         id webViewEngine = cdvViewController.webViewEngine;
         if (webViewEngine && [webViewEngine respondsToSelector:@selector(engineWebView)]) {
             WKWebView *webView = [webViewEngine performSelector:@selector(engineWebView)];
 
             if (webView && [webView isKindOfClass:[WKWebView class]]) {
-                // loadFileURL:allowingReadAccessToURL: правильно настраивает sandbox permissions для локальных файлов
                 dispatch_async(dispatch_get_main_queue(), ^{
                     [webView loadFileURL:fileURL allowingReadAccessToURL:allowReadAccessToURL];
-                    NSLog(@"[HotUpdates] WebView loadFileURL executed with sandbox permissions");
                 });
             } else {
-                NSLog(@"[HotUpdates] Could not access WKWebView for reload");
+                NSLog(@"[HotUpdates] ERROR: Could not access WKWebView for reload");
             }
         } else {
-            NSLog(@"[HotUpdates] WebView engine not available for reload");
+            NSLog(@"[HotUpdates] ERROR: WebView engine not available for reload");
         }
     } else {
-        NSLog(@"[HotUpdates] ViewController is not CDVViewController type");
+        NSLog(@"[HotUpdates] ERROR: ViewController is not CDVViewController type");
     }
 }
 
@@ -259,120 +239,126 @@ static BOOL hasPerformedInitialReload = NO;
     NSFileManager *fileManager = [NSFileManager defaultManager];
 
     if (![fileManager fileExistsAtPath:wwwPath]) {
-        NSLog(@"[HotUpdates] WWW folder not found in Documents. Creating and copying from bundle...");
-
         NSString *bundleWWWPath = [[NSBundle mainBundle] pathForResource:@"www" ofType:nil];
         if (bundleWWWPath) {
             NSError *error;
             [fileManager copyItemAtPath:bundleWWWPath toPath:wwwPath error:&error];
             if (error) {
-                NSLog(@"[HotUpdates] Error copying www folder: %@", error.localizedDescription);
+                NSLog(@"[HotUpdates] ERROR: Failed to copy www folder: %@", error.localizedDescription);
             } else {
-                NSLog(@"[HotUpdates] WWW folder copied successfully to Documents");
+                NSLog(@"[HotUpdates] Initialized www folder from bundle");
             }
         } else {
-            NSLog(@"[HotUpdates] Error: Bundle www folder not found");
+            NSLog(@"[HotUpdates] ERROR: Bundle www folder not found");
         }
-    } else {
-        NSLog(@"[HotUpdates] WWW folder already exists in Documents");
     }
 }
 
 - (BOOL)unzipFile:(NSString*)zipPath toDestination:(NSString*)destination {
-    NSLog(@"[HotUpdates] Unzipping %@ to %@", zipPath, destination);
-
     NSFileManager *fileManager = [NSFileManager defaultManager];
     NSError *error = nil;
 
+    // Проверяем существование ZIP файла
+    if (![fileManager fileExistsAtPath:zipPath]) {
+        NSLog(@"[HotUpdates] ERROR: ZIP file does not exist");
+        return NO;
+    }
+
+    // Проверяем magic bytes (PK\x03\x04)
+    if (![self isValidZipFile:zipPath]) {
+        NSLog(@"[HotUpdates] ERROR: Invalid file format (not a ZIP archive)");
+        return NO;
+    }
+
+    NSLog(@"[HotUpdates] Extracting update package...");
+
+    // Создаём директорию назначения если не существует
     if (![fileManager fileExistsAtPath:destination]) {
         [fileManager createDirectoryAtPath:destination withIntermediateDirectories:YES attributes:nil error:&error];
         if (error) {
-            NSLog(@"[HotUpdates] Error creating destination directory: %@", error.localizedDescription);
+            NSLog(@"[HotUpdates] ERROR: Failed to create destination directory: %@", error.localizedDescription);
             return NO;
         }
     }
 
-    NSLog(@"[HotUpdates] Extracting ZIP archive using SSZipArchive library");
-
-    if (![[NSFileManager defaultManager] fileExistsAtPath:zipPath]) {
-        NSLog(@"[HotUpdates] ZIP file does not exist: %@", zipPath);
-        return NO;
-    }
-
     NSString *tempExtractPath = [destination stringByAppendingPathComponent:@"temp_extract"];
 
-    if ([[NSFileManager defaultManager] fileExistsAtPath:tempExtractPath]) {
-        [[NSFileManager defaultManager] removeItemAtPath:tempExtractPath error:nil];
+    // Очищаем временную директорию
+    if ([fileManager fileExistsAtPath:tempExtractPath]) {
+        [fileManager removeItemAtPath:tempExtractPath error:nil];
     }
 
-    if (![[NSFileManager defaultManager] createDirectoryAtPath:tempExtractPath withIntermediateDirectories:YES attributes:nil error:&error]) {
-        NSLog(@"[HotUpdates] Failed to create temp extraction folder: %@", error.localizedDescription);
+    if (![fileManager createDirectoryAtPath:tempExtractPath withIntermediateDirectories:YES attributes:nil error:&error]) {
+        NSLog(@"[HotUpdates] ERROR: Failed to create temp directory: %@", error.localizedDescription);
         return NO;
     }
-
-    NSLog(@"[HotUpdates] Extracting to temp location: %@", tempExtractPath);
 
     BOOL extractSuccess = [SSZipArchive unzipFileAtPath:zipPath toDestination:tempExtractPath];
 
-    if (extractSuccess) {
-        NSLog(@"[HotUpdates] ZIP extraction successful");
-
-        NSArray *extractedContents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:tempExtractPath error:nil];
-        NSLog(@"[HotUpdates] Extracted contents: %@", extractedContents);
-
-        // Ищем папку www (может быть вложенной)
-        NSString *wwwSourcePath = nil;
-        for (NSString *item in extractedContents) {
-            NSString *itemPath = [tempExtractPath stringByAppendingPathComponent:item];
-            BOOL isDirectory;
-            if ([[NSFileManager defaultManager] fileExistsAtPath:itemPath isDirectory:&isDirectory] && isDirectory) {
-                if ([item isEqualToString:@"www"]) {
-                    wwwSourcePath = itemPath;
-                    break;
-                }
-                NSString *nestedWwwPath = [itemPath stringByAppendingPathComponent:@"www"];
-                if ([[NSFileManager defaultManager] fileExistsAtPath:nestedWwwPath]) {
-                    wwwSourcePath = nestedWwwPath;
-                    break;
-                }
-            }
-        }
-
-        if (wwwSourcePath) {
-            NSLog(@"[HotUpdates] Found www folder at: %@", wwwSourcePath);
-
-            NSString *finalWwwPath = [destination stringByAppendingPathComponent:@"www"];
-
-            if ([[NSFileManager defaultManager] fileExistsAtPath:finalWwwPath]) {
-                [[NSFileManager defaultManager] removeItemAtPath:finalWwwPath error:nil];
-            }
-
-            NSError *copyError = nil;
-            BOOL copySuccess = [[NSFileManager defaultManager] copyItemAtPath:wwwSourcePath toPath:finalWwwPath error:&copyError];
-
-            if (copySuccess) {
-                NSLog(@"[HotUpdates] www folder copied successfully to: %@", finalWwwPath);
-
-                [[NSFileManager defaultManager] removeItemAtPath:tempExtractPath error:nil];
-
-                NSLog(@"[HotUpdates] ZIP extraction completed successfully");
-                return YES;
-            } else {
-                NSLog(@"[HotUpdates] Error copying www folder: %@", copyError.localizedDescription);
-            }
-        } else {
-            NSLog(@"[HotUpdates] www folder not found in ZIP archive");
-            NSLog(@"[HotUpdates] Available contents: %@", extractedContents);
-        }
-
-        [[NSFileManager defaultManager] removeItemAtPath:tempExtractPath error:nil];
-    } else {
-        NSLog(@"[HotUpdates] Failed to extract ZIP archive");
-        [[NSFileManager defaultManager] removeItemAtPath:tempExtractPath error:nil];
+    if (!extractSuccess) {
+        NSLog(@"[HotUpdates] ERROR: Failed to extract ZIP archive");
+        [fileManager removeItemAtPath:tempExtractPath error:nil];
+        return NO;
     }
 
-    NSLog(@"[HotUpdates] ZIP extraction failed");
-    return NO;
+    NSArray *extractedContents = [fileManager contentsOfDirectoryAtPath:tempExtractPath error:nil];
+
+    // Ищем папку www (может быть вложенной)
+    NSString *wwwSourcePath = nil;
+    for (NSString *item in extractedContents) {
+        NSString *itemPath = [tempExtractPath stringByAppendingPathComponent:item];
+        BOOL isDirectory;
+        if ([fileManager fileExistsAtPath:itemPath isDirectory:&isDirectory] && isDirectory) {
+            if ([item isEqualToString:@"www"]) {
+                wwwSourcePath = itemPath;
+                break;
+            }
+            NSString *nestedWwwPath = [itemPath stringByAppendingPathComponent:@"www"];
+            if ([fileManager fileExistsAtPath:nestedWwwPath]) {
+                wwwSourcePath = nestedWwwPath;
+                break;
+            }
+        }
+    }
+
+    if (!wwwSourcePath) {
+        NSLog(@"[HotUpdates] ERROR: www folder not found in ZIP archive");
+        [fileManager removeItemAtPath:tempExtractPath error:nil];
+        return NO;
+    }
+
+    NSString *finalWwwPath = [destination stringByAppendingPathComponent:@"www"];
+
+    if ([fileManager fileExistsAtPath:finalWwwPath]) {
+        [fileManager removeItemAtPath:finalWwwPath error:nil];
+    }
+
+    NSError *copyError = nil;
+    BOOL copySuccess = [fileManager copyItemAtPath:wwwSourcePath toPath:finalWwwPath error:&copyError];
+
+    [fileManager removeItemAtPath:tempExtractPath error:nil];
+
+    if (!copySuccess) {
+        NSLog(@"[HotUpdates] ERROR: Failed to copy www folder: %@", copyError.localizedDescription);
+        return NO;
+    }
+
+    NSLog(@"[HotUpdates] Extraction completed successfully");
+    return YES;
+}
+
+- (BOOL)isValidZipFile:(NSString*)filePath {
+    NSFileHandle *file = [NSFileHandle fileHandleForReadingAtPath:filePath];
+    if (!file) return NO;
+
+    NSData *header = [file readDataOfLength:4];
+    [file closeFile];
+
+    if (header.length < 4) return NO;
+
+    const uint8_t *bytes = header.bytes;
+    // ZIP magic: PK\x03\x04 (0x504B0304)
+    return (bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04);
 }
 
 #pragma mark - Settings Management
@@ -603,8 +589,7 @@ static BOOL hasPerformedInitialReload = NO;
         updateVersion = @"pending";
     }
 
-    NSLog(@"[HotUpdates] getUpdate() called - downloading update from: %@", downloadURL);
-    NSLog(@"[HotUpdates] Version: %@", updateVersion);
+    NSLog(@"[HotUpdates] getUpdate: v%@ from %@", updateVersion, downloadURL);
 
     NSString *installedVersion = [[NSUserDefaults standardUserDefaults] stringForKey:kInstalledVersion];
     if (installedVersion && [installedVersion isEqualToString:updateVersion]) {
@@ -632,11 +617,9 @@ static BOOL hasPerformedInitialReload = NO;
         return;
     }
 
+    // Сохраняем только в память, в UserDefaults запишем после успешной загрузки
     pendingUpdateURL = downloadURL;
     pendingUpdateVersion = updateVersion;
-    [[NSUserDefaults standardUserDefaults] setObject:downloadURL forKey:kPendingUpdateURL];
-    [[NSUserDefaults standardUserDefaults] setObject:updateVersion forKey:kPendingVersion];
-    [[NSUserDefaults standardUserDefaults] synchronize];
 
     [self downloadUpdateOnly:downloadURL callbackId:command.callbackId];
 }
@@ -650,7 +633,7 @@ static BOOL hasPerformedInitialReload = NO;
 
     NSURL *url = [NSURL URLWithString:downloadURL];
     if (!url) {
-        NSLog(@"[HotUpdates] Invalid URL: %@", downloadURL);
+        NSLog(@"[HotUpdates] ERROR: Invalid URL format");
         isDownloadingUpdate = NO;
         [[NSUserDefaults standardUserDefaults] setBool:NO forKey:kDownloadInProgress];
         [[NSUserDefaults standardUserDefaults] synchronize];
@@ -678,7 +661,7 @@ static BOOL hasPerformedInitialReload = NO;
         [[NSUserDefaults standardUserDefaults] synchronize];
 
         if (error) {
-            NSLog(@"[HotUpdates] Download failed: %@", error.localizedDescription);
+            NSLog(@"[HotUpdates] ERROR: Download failed: %@", error.localizedDescription);
 
             CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                      messageAsDictionary:[self createError:kErrorDownloadFailed
@@ -689,7 +672,7 @@ static BOOL hasPerformedInitialReload = NO;
 
         NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
         if (httpResponse.statusCode != 200) {
-            NSLog(@"[HotUpdates] Download failed: HTTP %ld", (long)httpResponse.statusCode);
+            NSLog(@"[HotUpdates] ERROR: HTTP %ld", (long)httpResponse.statusCode);
 
             CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                      messageAsDictionary:[self createError:kErrorHTTPError
@@ -698,9 +681,7 @@ static BOOL hasPerformedInitialReload = NO;
             return;
         }
 
-        NSLog(@"[HotUpdates] Download completed successfully");
-
-        // Сохраняем скачанное обновление во временную папку
+        NSLog(@"[HotUpdates] Download completed, verifying...");
         [self saveDownloadedUpdate:location callbackId:callbackId];
     }];
 
@@ -708,24 +689,25 @@ static BOOL hasPerformedInitialReload = NO;
 }
 
 - (void)saveDownloadedUpdate:(NSURL*)updateLocation callbackId:(NSString*)callbackId {
-    NSLog(@"[HotUpdates] Saving downloaded update");
-
     NSFileManager *fileManager = [NSFileManager defaultManager];
     NSError *error;
 
+    // Используем временную папку для новой загрузки (не трогаем существующую temp_downloaded_update)
+    NSString *newDownloadPath = [documentsPath stringByAppendingPathComponent:@"temp_new_download"];
     NSString *tempUpdatePath = [documentsPath stringByAppendingPathComponent:@"temp_downloaded_update"];
 
-    if ([fileManager fileExistsAtPath:tempUpdatePath]) {
-        [fileManager removeItemAtPath:tempUpdatePath error:nil];
+    // Очищаем только папку для новой загрузки
+    if ([fileManager fileExistsAtPath:newDownloadPath]) {
+        [fileManager removeItemAtPath:newDownloadPath error:nil];
     }
 
-    [fileManager createDirectoryAtPath:tempUpdatePath
+    [fileManager createDirectoryAtPath:newDownloadPath
            withIntermediateDirectories:YES
                             attributes:nil
                                  error:&error];
 
     if (error) {
-        NSLog(@"[HotUpdates] Error creating temp directory: %@", error);
+        NSLog(@"[HotUpdates] ERROR: Failed to create temp directory: %@", error.localizedDescription);
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                  messageAsDictionary:[self createError:kErrorTempDirError
                                                                                 message:@"Cannot create temp directory"]];
@@ -733,11 +715,10 @@ static BOOL hasPerformedInitialReload = NO;
         return;
     }
 
-    BOOL unzipSuccess = [self unzipFile:updateLocation.path toDestination:tempUpdatePath];
+    BOOL unzipSuccess = [self unzipFile:updateLocation.path toDestination:newDownloadPath];
 
     if (!unzipSuccess) {
-        NSLog(@"[HotUpdates] Failed to unzip update");
-        [fileManager removeItemAtPath:tempUpdatePath error:nil];
+        [fileManager removeItemAtPath:newDownloadPath error:nil];
 
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                  messageAsDictionary:[self createError:kErrorExtractionFailed
@@ -746,10 +727,10 @@ static BOOL hasPerformedInitialReload = NO;
         return;
     }
 
-    NSString *tempWwwPath = [tempUpdatePath stringByAppendingPathComponent:kWWWDirName];
-    if (![fileManager fileExistsAtPath:tempWwwPath]) {
-        NSLog(@"[HotUpdates] www folder not found in update package");
-        [fileManager removeItemAtPath:tempUpdatePath error:nil];
+    NSString *newWwwPath = [newDownloadPath stringByAppendingPathComponent:kWWWDirName];
+    if (![fileManager fileExistsAtPath:newWwwPath]) {
+        NSLog(@"[HotUpdates] ERROR: www folder not found in update package");
+        [fileManager removeItemAtPath:newDownloadPath error:nil];
 
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                  messageAsDictionary:[self createError:kErrorWWWNotFound
@@ -757,6 +738,12 @@ static BOOL hasPerformedInitialReload = NO;
         [self.commandDelegate sendPluginResult:result callbackId:callbackId];
         return;
     }
+
+    // Успех! Теперь безопасно заменяем старую temp_downloaded_update на новую
+    if ([fileManager fileExistsAtPath:tempUpdatePath]) {
+        [fileManager removeItemAtPath:tempUpdatePath error:nil];
+    }
+    [fileManager moveItemAtPath:newDownloadPath toPath:tempUpdatePath error:nil];
 
     // Копируем в pending_update для автоустановки при следующем запуске
     NSString *pendingPath = [documentsPath stringByAppendingPathComponent:kPendingUpdateDirName];
@@ -770,18 +757,18 @@ static BOOL hasPerformedInitialReload = NO;
                                              error:&error];
 
     if (!copySuccess) {
-        NSLog(@"[HotUpdates] Failed to copy to pending_update: %@", error);
-    } else {
-        NSLog(@"[HotUpdates] Copied to pending_update for auto-install on next launch");
+        NSLog(@"[HotUpdates] WARNING: Failed to copy to pending_update (auto-install disabled): %@", error.localizedDescription);
     }
 
     isUpdateReadyToInstall = YES;
+    // Сохраняем URL и версию в UserDefaults только после успешной загрузки
+    [[NSUserDefaults standardUserDefaults] setObject:pendingUpdateURL forKey:kPendingUpdateURL];
+    [[NSUserDefaults standardUserDefaults] setObject:pendingUpdateVersion forKey:kPendingVersion];
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:kPendingUpdateReady];
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:kHasPending];
     [[NSUserDefaults standardUserDefaults] synchronize];
 
-    NSLog(@"[HotUpdates] Update downloaded and ready to install");
-    NSLog(@"[HotUpdates] If user ignores popup, update will install automatically on next launch");
+    NSLog(@"[HotUpdates] Update ready (v%@)", pendingUpdateVersion);
 
     CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self.commandDelegate sendPluginResult:result callbackId:callbackId];
@@ -790,8 +777,6 @@ static BOOL hasPerformedInitialReload = NO;
 #pragma mark - Force Update (Install Only)
 
 - (void)forceUpdate:(CDVInvokedUrlCommand*)command {
-    NSLog(@"[HotUpdates] forceUpdate() called - installing downloaded update");
-
     if (!isUpdateReadyToInstall) {
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                  messageAsDictionary:[self createError:kErrorNoUpdateReady
@@ -804,7 +789,7 @@ static BOOL hasPerformedInitialReload = NO;
     NSString *tempWwwPath = [tempUpdatePath stringByAppendingPathComponent:kWWWDirName];
 
     if (![[NSFileManager defaultManager] fileExistsAtPath:tempWwwPath]) {
-        NSLog(@"[HotUpdates] Downloaded update files not found");
+        NSLog(@"[HotUpdates] ERROR: Downloaded update files not found");
 
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                  messageAsDictionary:[self createError:kErrorUpdateFilesNotFound
@@ -817,12 +802,12 @@ static BOOL hasPerformedInitialReload = NO;
 }
 
 - (void)installDownloadedUpdate:(NSString*)tempWwwPath callbackId:(NSString*)callbackId {
-    NSLog(@"[HotUpdates] Installing update");
-
     NSString *versionToInstall = [[NSUserDefaults standardUserDefaults] stringForKey:kPendingVersion];
     if (!versionToInstall) {
         versionToInstall = @"unknown";
     }
+
+    NSLog(@"[HotUpdates] forceUpdate: installing v%@", versionToInstall);
 
     NSFileManager *fileManager = [NSFileManager defaultManager];
     NSError *error;
@@ -838,7 +823,7 @@ static BOOL hasPerformedInitialReload = NO;
                                              error:&error];
 
     if (!copySuccess) {
-        NSLog(@"[HotUpdates] Failed to install update: %@", error);
+        NSLog(@"[HotUpdates] ERROR: Failed to install update: %@", error.localizedDescription);
 
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                  messageAsDictionary:[self createError:kErrorInstallFailed
@@ -867,18 +852,14 @@ static BOOL hasPerformedInitialReload = NO;
     pendingUpdateVersion = nil;
 
     NSLog(@"[HotUpdates] Update installed successfully");
+    NSLog(@"[HotUpdates] Starting canary timer for version %@", newVersion);
 
     CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self.commandDelegate sendPluginResult:result callbackId:callbackId];
 
-    // После reloadWebView pluginInitialize НЕ вызывается, поэтому canary timer запускаем вручную
-    NSLog(@"[HotUpdates] Starting canary timer (20 seconds) for version %@", newVersion);
-
     [self startCanaryTimer];
-
     hasPerformedInitialReload = NO;
 
-    // Очищаем кэш WebView перед перезагрузкой, иначе может загрузиться старая версия
     [self clearWebViewCacheWithCompletion:^{
         [self reloadWebView];
     }];
@@ -901,8 +882,6 @@ static BOOL hasPerformedInitialReload = NO;
         return;
     }
 
-    NSLog(@"[HotUpdates] Canary called for version: %@", canaryVersion);
-
     // Сохраняем canary версию
     [[NSUserDefaults standardUserDefaults] setObject:canaryVersion forKey:kCanaryVersion];
     [[NSUserDefaults standardUserDefaults] synchronize];
@@ -911,7 +890,7 @@ static BOOL hasPerformedInitialReload = NO;
     if (canaryTimer && [canaryTimer isValid]) {
         [canaryTimer invalidate];
         canaryTimer = nil;
-        NSLog(@"[HotUpdates] Canary timer stopped - JS confirmed bundle is working");
+        NSLog(@"[HotUpdates] Canary confirmed: v%@", canaryVersion);
     }
 
     // ТЗ: при успехе callback возвращает null

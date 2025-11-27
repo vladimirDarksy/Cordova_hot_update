@@ -1,4 +1,4 @@
-# Cordova Hot Updates Plugin v2.2.1
+# Cordova Hot Updates Plugin v2.2.2
 
 Frontend-controlled manual hot updates for Cordova iOS applications using WebView Reload approach.
 
