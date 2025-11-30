@@ -29,16 +29,18 @@
 
     // Settings
     NSMutableArray *ignoreList;       // Список игнорируемых версий (управляется только native)
+    NSMutableArray *versionHistory;   // История успешно установленных версий (исключая откаченные)
     NSString *previousVersionPath;    // Путь к предыдущей версии
 }
 
-// JavaScript API methods (v2.1.0)
-- (void)getUpdate:(CDVInvokedUrlCommand*)command;      // Download update
-- (void)forceUpdate:(CDVInvokedUrlCommand*)command;    // Install downloaded update
-- (void)canary:(CDVInvokedUrlCommand*)command;         // Confirm successful load
-- (void)getIgnoreList:(CDVInvokedUrlCommand*)command;  // Get ignore list (JS reads only)
+// JavaScript API methods (v2.2.2)
+- (void)getUpdate:(CDVInvokedUrlCommand*)command;        // Download update
+- (void)forceUpdate:(CDVInvokedUrlCommand*)command;      // Install downloaded update
+- (void)canary:(CDVInvokedUrlCommand*)command;           // Confirm successful load
+- (void)getIgnoreList:(CDVInvokedUrlCommand*)command;    // Get ignore list (JS reads only)
+- (void)getVersionHistory:(CDVInvokedUrlCommand*)command; // Get version history (successful installs only)
 
 // Debug method
-- (void)getVersionInfo:(CDVInvokedUrlCommand*)command; // Get all version info for debugging
+- (void)getVersionInfo:(CDVInvokedUrlCommand*)command;   // Get all version info for debugging
 
 @end

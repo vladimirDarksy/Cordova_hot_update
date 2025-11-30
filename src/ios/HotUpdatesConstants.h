@@ -39,6 +39,7 @@ extern NSString * const kCanaryVersion;
 extern NSString * const kDownloadInProgress;
 extern NSString * const kPendingUpdateURL;
 extern NSString * const kPendingUpdateReady;
+extern NSString * const kVersionHistory;
 
 #pragma mark - Directory Names
 

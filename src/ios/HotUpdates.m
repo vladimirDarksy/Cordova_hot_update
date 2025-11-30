@@ -12,8 +12,8 @@
  *          - IgnoreList for tracking problematic versions
  *          - Auto-install pending updates on next app launch
  *
- * @version 2.2.2
- * @date 2025-11-28
+ * @version 2.1.2
+ * @date 2025-11-26
  * @author Mustafin Vladimir
  * @copyright Copyright (c) 2025. All rights reserved.
  */
@@ -55,6 +55,7 @@ static BOOL hasPerformedInitialReload = NO;
 
     [self loadConfiguration];
     [self loadIgnoreList];
+    [self loadVersionHistory];
 
     // Сбрасываем флаг загрузки (если приложение было убито во время загрузки)
     isDownloadingUpdate = NO;
@@ -126,6 +127,9 @@ static BOOL hasPerformedInitialReload = NO;
                 [[NSUserDefaults standardUserDefaults] synchronize];
 
                 [[NSFileManager defaultManager] removeItemAtPath:pendingUpdatePath error:nil];
+
+                // Добавляем версию в историю при успешной установке
+                [self addVersionToHistory:pendingVersion];
 
                 NSLog(@"[HotUpdates] Update %@ installed successfully", pendingVersion);
             } else {
@@ -395,6 +399,58 @@ static BOOL hasPerformedInitialReload = NO;
     [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
 }
 
+#pragma mark - Version History Management
+
+- (void)loadVersionHistory {
+    NSArray *savedHistory = [[NSUserDefaults standardUserDefaults] arrayForKey:kVersionHistory];
+    if (savedHistory) {
+        versionHistory = [savedHistory mutableCopy];
+    } else {
+        versionHistory = [NSMutableArray array];
+        // При первом запуске добавляем исходную версию приложения
+        if (appBundleVersion) {
+            [versionHistory addObject:appBundleVersion];
+            [self saveVersionHistory];
+            NSLog(@"[HotUpdates] Initial version history created with app version: %@", appBundleVersion);
+        }
+    }
+}
+
+- (NSArray*)getVersionHistoryInternal {
+    return [versionHistory copy];
+}
+
+- (void)saveVersionHistory {
+    [[NSUserDefaults standardUserDefaults] setObject:versionHistory forKey:kVersionHistory];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+- (void)addVersionToHistory:(NSString*)version {
+    if (version && ![versionHistory containsObject:version]) {
+        [versionHistory addObject:version];
+        [self saveVersionHistory];
+        NSLog(@"[HotUpdates] Added version %@ to version history", version);
+    }
+}
+
+- (void)removeVersionFromHistory:(NSString*)version {
+    if (version && [versionHistory containsObject:version]) {
+        [versionHistory removeObject:version];
+        [self saveVersionHistory];
+        NSLog(@"[HotUpdates] Removed version %@ from version history", version);
+    }
+}
+
+- (void)getVersionHistory:(CDVInvokedUrlCommand*)command {
+    NSArray *history = [self getVersionHistoryInternal];
+
+    CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+                                             messageAsDictionary:@{
+        @"versions": history
+    }];
+    [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+}
+
 #pragma mark - Canary Timer
 
 /*!
@@ -543,6 +599,8 @@ static BOOL hasPerformedInitialReload = NO;
 
         if (currentVersion) {
             [self addVersionToIgnoreList:currentVersion];
+            // Удаляем откаченную версию из истории (она не прошла canary)
+            [self removeVersionFromHistory:currentVersion];
         }
 
         return YES;
@@ -850,6 +908,9 @@ static BOOL hasPerformedInitialReload = NO;
     isUpdateReadyToInstall = NO;
     pendingUpdateURL = nil;
     pendingUpdateVersion = nil;
+
+    // Добавляем версию в историю при успешной установке
+    [self addVersionToHistory:newVersion];
 
     NSLog(@"[HotUpdates] Update installed successfully");
     NSLog(@"[HotUpdates] Starting canary timer for version %@", newVersion);

@@ -37,6 +37,7 @@ NSString * const kCanaryVersion = @"hot_updates_canary_version";
 NSString * const kDownloadInProgress = @"hot_updates_download_in_progress";
 NSString * const kPendingUpdateURL = @"hot_updates_pending_update_url";
 NSString * const kPendingUpdateReady = @"hot_updates_pending_ready";
+NSString * const kVersionHistory = @"hot_updates_version_history";
 
 #pragma mark - Directory Names
 

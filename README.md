@@ -1,4 +1,4 @@
-# Cordova Hot Updates Plugin v2.2.2
+# Cordova Hot Updates Plugin v2.2.3
 
 Frontend-controlled manual hot updates for Cordova iOS applications using WebView Reload approach.
 
@@ -14,6 +14,7 @@ This plugin enables **manual, JavaScript-controlled** web content updates for yo
 - **Auto-Install on Launch**: If user ignores update prompt, it installs on next app launch
 - **Canary System**: Automatic rollback if update fails to load (20-second timeout)
 - **IgnoreList**: Tracks problematic versions (information only, does NOT block installation)
+- **Version History** *(new in v2.2.3)*: Tracks successful versions for progressive data migrations
 - **Instant Effect**: WebView Reload approach - no app restart needed
 - **Cache Management**: Clears WKWebView cache (disk, memory, Service Worker) before reload
 
@@ -262,6 +263,58 @@ window.hotUpdate.getIgnoreList(function(result) {
 
     if (result.versions.includes(newVersion)) {
         console.log('Skipping known problematic version');
+    }
+});
+```
+
+---
+
+### window.hotUpdate.getVersionHistory(callback)
+
+Returns list of all successfully installed versions (excluding rolled back ones).
+
+**New in v2.2.3** - Enables progressive data migrations.
+
+When internal data structure changes, you may need to run migrations. This method returns the version history so your app can determine which migrations to run.
+
+**Key behaviors:**
+- **Automatically initialized** with `appBundleVersion` on first launch
+- **Added to history** when update is successfully installed
+- **Removed from history** when version is rolled back (failed canary)
+- **Excludes ignoreList** - only contains successful versions
+
+**Parameters:**
+- `callback` (Function) - `callback(result)`
+  - `result`: `{versions: string[]}` - Array of successful version strings
+
+**Example:**
+```javascript
+window.hotUpdate.getVersionHistory(function(result) {
+    console.log('Version history:', result.versions);
+    // Example: ["2.7.7", "2.7.8", "2.7.9"]
+
+    // Run migrations based on version progression
+    result.versions.forEach((version, index) => {
+        if (index > 0) {
+            const from = result.versions[index - 1];
+            const to = version;
+            runMigration(from, to);
+        }
+    });
+});
+```
+
+**Use Case:**
+```javascript
+// Check for missed critical versions
+window.hotUpdate.getVersionHistory(function(result) {
+    const criticalVersions = ['2.8.0', '3.0.0']; // Versions with important migrations
+    const missed = criticalVersions.filter(v => !result.versions.includes(v));
+
+    if (missed.length > 0) {
+        console.warn('User skipped critical versions:', missed);
+        // Run all missed critical migrations
+        missed.forEach(v => runCriticalMigration(v));
     }
 });
 ```
