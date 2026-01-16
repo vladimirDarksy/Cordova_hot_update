@@ -1,22 +1,34 @@
-# Cordova Hot Updates Plugin v2.2.3
+# Cordova Hot Updates Plugin v2.3.0
 
-Frontend-controlled manual hot updates for Cordova iOS applications using WebView Reload approach.
+Frontend-controlled manual hot updates for Cordova **iOS and Android** applications using WebView Reload approach.
 
 [![npm version](https://badge.fury.io/js/cordova-plugin-hot-updates.svg)](https://badge.fury.io/js/cordova-plugin-hot-updates)
 [![License](https://img.shields.io/badge/License-Custom%20Non--Commercial-blue.svg)](#license)
+[![Platforms](https://img.shields.io/badge/platforms-iOS%20%7C%20Android-lightgrey.svg)](#platform-support)
 
-This plugin enables **manual, JavaScript-controlled** web content updates for your Cordova iOS applications without requiring App Store approval. Your frontend code decides when to check, download, and install updates.
+This plugin enables **manual, JavaScript-controlled** web content updates for your Cordova applications without requiring App Store/Google Play approval. Your frontend code decides when to check, download, and install updates.
+
+## Platform Support
+
+| Platform | Version | Status | Notes |
+|----------|---------|--------|-------|
+| iOS | 2.1.2+ | Stable | Requires CocoaPods for SSZipArchive |
+| Android | 2.3.0+ | Stable | Built-in ZIP support, no external dependencies |
+
+Both platforms provide 100% API compatibility. The same JavaScript code works on both iOS and Android.
 
 ## Features
 
-- **Frontend Control**: JavaScript decides when to update (no automatic background checking)
-- **Two-Step Updates**: Separate download (`getUpdate`) and install (`forceUpdate`) for better UX
-- **Auto-Install on Launch**: If user ignores update prompt, it installs on next app launch
-- **Canary System**: Automatic rollback if update fails to load (20-second timeout)
-- **IgnoreList**: Tracks problematic versions (information only, does NOT block installation)
-- **Version History** *(new in v2.2.3)*: Tracks successful versions for progressive data migrations
-- **Instant Effect**: WebView Reload approach - no app restart needed
-- **Cache Management**: Clears WKWebView cache (disk, memory, Service Worker) before reload
+- **Cross-Platform** - Full support for iOS and Android with 100% API compatibility
+- **Frontend Control** - JavaScript decides when to update (no automatic background checking)
+- **Two-Step Updates** - Separate download and install methods for better UX control
+- **Auto-Install on Launch** - If user ignores update prompt, it installs on next app launch
+- **Canary System** - Automatic rollback if update fails to load (20-second timeout)
+- **IgnoreList** - Tracks problematic versions (information only, does not block installation)
+- **Version History** - Tracks successful versions for progressive data migrations
+- **Instant Effect** - WebView Reload approach, no app restart required
+- **Cache Management** - iOS clears WKWebView cache; Android uses LOAD_NO_CACHE mode
+- **Security** - ZIP magic bytes validation on both platforms
 
 ## Installation
 
@@ -24,9 +36,12 @@ This plugin enables **manual, JavaScript-controlled** web content updates for yo
 # Install from npm
 cordova plugin add cordova-plugin-hot-updates
 
-# Install CocoaPods dependencies (required)
+# For iOS: Install CocoaPods dependencies (required)
 cd platforms/ios
 pod install
+cd ../..
+
+# For Android: No additional dependencies needed!
 ```
 
 Or install from local directory:
@@ -42,10 +57,24 @@ cordova plugin add https://github.com/vladimirDarksy/Cordova_hot_update.git
 ```
 
 **Requirements:**
+
+**iOS:**
 - Cordova >= 7.0.0
 - cordova-ios >= 4.4.0
-- iOS >= 11.2
+- iOS >= 12.0
 - CocoaPods (for SSZipArchive dependency)
+
+**Android:**
+- Cordova >= 7.0.0
+- cordova-android >= 9.0.0
+- Android >= 7.0 (API 24)
+- No external dependencies (uses built-in `java.util.zip`)
+
+**Automatic Configuration:**
+
+The plugin automatically configures required settings during installation:
+- iOS: NSAppTransportSecurity for HTTP connections
+- Android: file scheme, AndroidInsecureFileModeEnabled, LoadUrlTimeoutValue
 
 ## Quick Start
 
@@ -426,8 +455,18 @@ document.addEventListener('deviceready', function() {
 
 ### Storage Structure
 
+**iOS:**
 ```
-Documents/
+~/Library/Application Support/[Bundle ID]/Documents/
+├── www/                    // Active version
+├── www_previous/           // Previous version (rollback)
+├── pending_update/         // Next launch auto-install
+└── temp_downloaded_update/ // Immediate install
+```
+
+**Android:**
+```
+/data/data/[package.name]/files/
 ├── www/                    // Active version
 ├── www_previous/           // Previous version (rollback)
 ├── pending_update/         // Next launch auto-install
@@ -436,7 +475,7 @@ Documents/
 
 ### Version Management
 
-- **appBundleVersion** - Native app version from Info.plist
+- **appBundleVersion** - Native app version (Info.plist / build.gradle)
 - **installedVersion** - Current hot update version
 - **previousVersion** - Last working version (rollback)
 
@@ -447,12 +486,13 @@ Your server should provide:
 **Check API:**
 ```
 GET https://your-server.com/api/check-update?version=1.0.0&platform=ios
+GET https://your-server.com/api/check-update?version=1.0.0&platform=android
 
 Response:
 {
   "hasUpdate": true,
   "version": "2.0.0",
-  "downloadUrl": "https://your-server.com/updates/2.0.0.zip",
+  "downloadUrl": "https://your-server.com/updates/ios/2.0.0.zip",
   "minAppVersion": "2.7.0",
   "releaseNotes": "Bug fixes"
 }
@@ -517,7 +557,9 @@ window.hotUpdate.canary(version);
 
 - Check ZIP structure (must have `www/` folder)
 - Check URL accessibility
-- Check Xcode console: `[HotUpdates] ...`
+- Check logs:
+  - iOS: Xcode console `[HotUpdates] ...`
+  - Android: `adb logcat -s HotUpdates:*`
 
 ### Automatic rollback
 
@@ -540,6 +582,86 @@ document.addEventListener('deviceready', function() {
     console.log(window.hotUpdate); // Now available
 }, false);
 ```
+
+## Platform-Specific Notes
+
+### iOS
+
+**Technologies:**
+- `NSUserDefaults` for metadata storage
+- `NSTimer` for canary timer (20 seconds)
+- `SSZipArchive` (CocoaPods) for ZIP extraction
+- `WKWebView` with `loadFileURL()`
+
+**Specifics:**
+- Always loads from `file://` scheme
+- ZIP magic bytes validation
+- Cache clearing: disk, memory, Service Worker
+
+### Android
+
+**Technologies:**
+- `SharedPreferences` for metadata storage
+- `Handler + Runnable` for canary timer (20 seconds)
+- `java.util.zip` (built-in) for ZIP extraction
+- `CordovaWebView` with `loadUrlIntoView()`
+
+**Specifics:**
+- Starts from `https://localhost/`, switches to `file://` after update
+- ZIP magic bytes validation
+- Cache management: `LOAD_NO_CACHE` mode
+- WebView file access automatically configured
+
+**Code Structure:**
+- `HotUpdates.java` - Main plugin class (700 lines)
+- `HotUpdatesHelpers.java` - Utility methods (350 lines)
+- `HotUpdatesConstants.java` - Constants (100 lines)
+
+## Testing
+
+### iOS Testing (Safari Web Inspector)
+
+```bash
+# On device: Settings → Safari → Advanced → Web Inspector (ON)
+# On Mac: Safari → Develop → [Device Name] → [App Name]
+
+# In console:
+hotUpdate.getVersionInfo(console.log)
+hotUpdate.canary('1.0.0', console.log)
+```
+
+### Android Testing (Chrome DevTools)
+
+```bash
+# 1. Connect device/emulator
+adb devices
+
+# 2. Open Chrome: chrome://inspect
+
+# 3. Find WebView and click "inspect"
+
+# 4. In console:
+hotUpdate.getVersionInfo(console.log)
+hotUpdate.canary('1.0.0', console.log)
+
+# 5. View logs:
+adb logcat -s HotUpdates:* -v time
+```
+
+## What's New in 2.3.0
+
+### Android Support
+
+Version 2.3.0 adds full Android platform support with the following features:
+
+- Complete Android implementation with 100% iOS API compatibility
+- Same JavaScript interface works on both platforms
+- No external dependencies (uses built-in java.util.zip)
+- Automatic configuration of file scheme and preferences
+- ZIP magic bytes validation for security
+- WebView cache management (LOAD_NO_CACHE mode)
+
+For complete version history, see [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

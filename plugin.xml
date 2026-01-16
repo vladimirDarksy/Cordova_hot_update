@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <plugin id="cordova-plugin-hot-updates"
-        version="2.2.3"
+        version="2.3.0"
         xmlns="http://apache.org/cordova/ns/plugins/1.0"
         xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -8,10 +8,10 @@
     <description>
         Cordova plugin for frontend-controlled manual hot updates using WebView Reload approach.
         Manual updates only, JavaScript controls all decisions.
-        Enables seamless web content updates without requiring App Store approval.
+        Supports iOS and Android with 100% API compatibility.
     </description>
     <license>Custom Non-Commercial</license>
-    <keywords>cordova,hot,updates,ota,over-the-air,webview,reload,manual</keywords>
+    <keywords>cordova,hot,updates,ota,over-the-air,webview,reload,manual,ios,android</keywords>
     <repo>https://github.com/vladimirDarksy/Cordova_hot_update.git</repo>
     <issue>https://github.com/vladimirDarksy/Cordova_hot_update/issues</issue>
 
@@ -20,6 +20,7 @@
     <engines>
         <engine name="cordova" version=">=7.0.0" />
         <engine name="cordova-ios" version=">=4.4.0" />
+        <engine name="cordova-android" version=">=9.0.0" />
     </engines>
 
     <!-- JavaScript interface -->
@@ -69,10 +70,30 @@
         </edit-config>
     </platform>
 
-    <!-- Android platform (placeholder for future implementation) -->
+    <!-- Android platform -->
     <platform name="android">
-        <!-- Android implementation would go here -->
-        <!-- For now, this plugin only supports iOS -->
+        <!-- Plugin configuration -->
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="HotUpdates">
+                <param name="android-package" value="com.getmeback.hotupdates.HotUpdates" />
+                <param name="onload" value="true" />
+            </feature>
+        </config-file>
+
+        <!-- Native Android files -->
+        <source-file src="src/android/HotUpdates.java"
+                     target-dir="src/com/getmeback/hotupdates" />
+        <source-file src="src/android/HotUpdatesHelpers.java"
+                     target-dir="src/com/getmeback/hotupdates" />
+        <source-file src="src/android/HotUpdatesConstants.java"
+                     target-dir="src/com/getmeback/hotupdates" />
+
+        <!-- Critical preferences for file:// scheme support -->
+        <config-file target="res/xml/config.xml" parent="/*">
+            <preference name="scheme" value="file" />
+            <preference name="AndroidInsecureFileModeEnabled" value="true" />
+            <preference name="LoadUrlTimeoutValue" value="120000" />
+        </config-file>
     </platform>
 
     <!-- Plugin hooks (optional) -->

@@ -1,12 +1,12 @@
 {
   "name": "cordova-plugin-hot-updates",
-  "version": "2.2.3",
-  "description": "Frontend-controlled manual hot updates for Cordova iOS apps using WebView Reload approach. Manual updates only, JavaScript controls all decisions.",
+  "version": "2.3.0",
+  "description": "Frontend-controlled manual hot updates for Cordova iOS and Android apps using WebView Reload approach. Manual updates only, JavaScript controls all decisions. 100% API compatibility between platforms.",
   "main": "www/HotUpdates.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "npm run verify",
-    "verify": "node -e \"console.log('Verifying package structure...'); const fs = require('fs'); ['www/HotUpdates.js', 'src/ios/HotUpdates.h', 'src/ios/HotUpdates.m', 'src/ios/HotUpdatesConstants.h', 'src/ios/HotUpdatesConstants.m', 'src/ios/HotUpdates+Helpers.h', 'src/ios/HotUpdates+Helpers.m', 'plugin.xml', 'LICENSE', 'README.md'].forEach(f => { if (!fs.existsSync(f)) throw new Error('Missing required file: ' + f); }); console.log('✓ All required files present');\"",
+    "verify": "node -e \"console.log('Verifying package structure...'); const fs = require('fs'); ['www/HotUpdates.js', 'src/ios/HotUpdates.h', 'src/ios/HotUpdates.m', 'src/ios/HotUpdatesConstants.h', 'src/ios/HotUpdatesConstants.m', 'src/ios/HotUpdates+Helpers.h', 'src/ios/HotUpdates+Helpers.m', 'src/android/HotUpdates.java', 'src/android/HotUpdatesHelpers.java', 'src/android/HotUpdatesConstants.java', 'plugin.xml', 'LICENSE', 'README.md'].forEach(f => { if (!fs.existsSync(f)) throw new Error('Missing required file: ' + f); }); console.log('✓ All required files present');\"",
     "pack-test": "npm pack && echo '\n✓ Package created. Test installation with: cordova plugin add ./cordova-plugin-hot-updates-*.tgz'",
     "preversion": "npm run verify",
     "postversion": "git push && git push --tags"
@@ -26,8 +26,10 @@
     "manual",
     "ecosystem:cordova",
     "cordova-ios",
+    "cordova-android",
     "mobile",
-    "app"
+    "app",
+    "cross-platform"
   ],
   "author": {
     "name": "Mustafin Vladimir",
@@ -45,15 +47,18 @@
   "cordova": {
     "id": "cordova-plugin-hot-updates",
     "platforms": [
-      "ios"
+      "ios",
+      "android"
     ]
   },
   "peerDependencies": {
-    "cordova-ios": ">=4.4.0"
+    "cordova-ios": ">=4.4.0",
+    "cordova-android": ">=9.0.0"
   },
   "devDependencies": {
     "cordova": "^12.0.0",
-    "cordova-ios": "^7.0.0"
+    "cordova-ios": "^7.0.0",
+    "cordova-android": "^12.0.0"
   },
   "files": [
     "www/",
