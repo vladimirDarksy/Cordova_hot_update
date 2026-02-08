@@ -53,7 +53,6 @@ public final class HotUpdatesConstants {
     public static final String PREF_VERSION_HISTORY = "hot_updates_version_history";
     public static final String PREF_CANARY_VERSION = "hot_updates_canary_version";
     public static final String PREF_DOWNLOAD_IN_PROGRESS = "hot_updates_download_in_progress";
-    public static final String PREF_PENDING_UPDATE_URL = "hot_updates_pending_update_url";
     public static final String PREF_PENDING_UPDATE_READY = "hot_updates_pending_ready";
 
     // ============================================================

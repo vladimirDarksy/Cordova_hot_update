@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <plugin id="cordova-plugin-hot-updates"
-        version="2.3.0"
+        version="2.3.1"
         xmlns="http://apache.org/cordova/ns/plugins/1.0"
         xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -88,12 +88,8 @@
         <source-file src="src/android/HotUpdatesConstants.java"
                      target-dir="src/com/getmeback/hotupdates" />
 
-        <!-- Critical preferences for file:// scheme support -->
-        <config-file target="res/xml/config.xml" parent="/*">
-            <preference name="scheme" value="file" />
-            <preference name="AndroidInsecureFileModeEnabled" value="true" />
-            <preference name="LoadUrlTimeoutValue" value="120000" />
-        </config-file>
+        <!-- AndroidX WebKit for CordovaPluginPathHandler support -->
+        <framework src="androidx.webkit:webkit:1.12.+" />
     </platform>
 
     <!-- Plugin hooks (optional) -->

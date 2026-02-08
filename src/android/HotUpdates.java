@@ -18,11 +18,16 @@ import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.webkit.MimeTypeMap;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
+import androidx.webkit.WebViewAssetLoader;
+
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
+import org.apache.cordova.CordovaPluginPathHandler;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -88,23 +93,6 @@ public class HotUpdates extends CordovaPlugin {
 
         canaryHandler = new Handler(Looper.getMainLooper());
 
-        // Enable file access for WebView (needed for loading from files/www)
-        try {
-            Object engineView = webView.getView();
-            if (engineView instanceof WebView) {
-                WebView wv = (WebView) engineView;
-                WebSettings settings = wv.getSettings();
-                settings.setAllowFileAccess(true);
-                settings.setAllowContentAccess(true);
-                // Note: These are deprecated but needed for file:// access
-                settings.setAllowFileAccessFromFileURLs(true);
-                settings.setAllowUniversalAccessFromFileURLs(true);
-                Log.d(TAG, "WebView file access enabled");
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Could not configure WebView settings: " + e.getMessage());
-        }
-
         loadConfiguration();
         loadIgnoreList();
         loadVersionHistory();
@@ -140,28 +128,8 @@ public class HotUpdates extends CordovaPlugin {
     @Override
     public void onStart() {
         super.onStart();
-
-        // If there's an installed version, redirect to external storage on startup
-        // This ensures pending updates that were auto-installed will be loaded
-        String installedVersion = getPrefs().getString(PREF_INSTALLED_VERSION, null);
-        if (installedVersion != null) {
-            cordova.getActivity().runOnUiThread(() -> {
-                try {
-                    String indexPath = "file://" + wwwPath + "/" + INDEX_HTML;
-                    Log.d(TAG, "Redirecting to external storage: " + indexPath);
-
-                    // Clear cache and disable caching before redirect
-                    android.webkit.WebView androidWebView = (android.webkit.WebView) webView.getView();
-                    androidWebView.clearCache(true);
-                    WebSettings webSettings = androidWebView.getSettings();
-                    webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-
-                    webView.loadUrlIntoView(indexPath, false);
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed to redirect to external storage: " + e.getMessage());
-                }
-            });
-        }
+        // No redirect needed - PathHandler transparently serves from files/www
+        // when an installed version exists, or falls through to assets/www otherwise
     }
 
     @Override
@@ -171,6 +139,77 @@ public class HotUpdates extends CordovaPlugin {
         }
         executor.shutdown();
         super.onDestroy();
+    }
+
+    // ============================================================
+    // PathHandler - serve updated files via https://localhost/
+    // ============================================================
+
+    @Override
+    public CordovaPluginPathHandler getPathHandler() {
+        WebViewAssetLoader.PathHandler handler = path -> {
+            try {
+                // Only intercept if there's an installed version
+                String installedVersion = getPrefs().getString(PREF_INSTALLED_VERSION, null);
+                if (installedVersion == null) {
+                    return null; // Let Cordova serve from assets/www
+                }
+
+                File wwwDir = new File(wwwPath);
+                if (!wwwDir.exists()) {
+                    return null;
+                }
+
+                if (path.isEmpty()) {
+                    path = INDEX_HTML;
+                }
+
+                File file = new File(wwwDir, path);
+
+                // Security: prevent path traversal
+                if (!file.getCanonicalPath().startsWith(wwwDir.getCanonicalPath())) {
+                    Log.e(TAG, "Path traversal attempt blocked: " + path);
+                    return null;
+                }
+
+                if (!file.exists() || file.isDirectory()) {
+                    return null; // Fall through to Cordova default handler
+                }
+
+                String mimeType = getMimeType(path);
+                InputStream is = new FileInputStream(file);
+                return new WebResourceResponse(mimeType, null, is);
+
+            } catch (Exception e) {
+                Log.e(TAG, "PathHandler error: " + e.getMessage());
+                return null;
+            }
+        };
+
+        return new CordovaPluginPathHandler(handler);
+    }
+
+    private String getMimeType(String path) {
+        if (path.endsWith(".js") || path.endsWith(".mjs")) {
+            return "application/javascript";
+        } else if (path.endsWith(".wasm")) {
+            return "application/wasm";
+        } else if (path.endsWith(".html") || path.endsWith(".htm")) {
+            return "text/html";
+        } else if (path.endsWith(".css")) {
+            return "text/css";
+        } else if (path.endsWith(".json")) {
+            return "application/json";
+        } else if (path.endsWith(".svg")) {
+            return "image/svg+xml";
+        }
+
+        String extension = MimeTypeMap.getFileExtensionFromUrl("file:///" + path);
+        if (extension != null) {
+            String mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+            if (mime != null) return mime;
+        }
+        return "application/octet-stream";
     }
 
     // ============================================================
@@ -812,29 +851,23 @@ public class HotUpdates extends CordovaPlugin {
     private void reloadWebView() {
         cordova.getActivity().runOnUiThread(() -> {
             try {
-                // Get WebView and its settings
                 android.webkit.WebView androidWebView = (android.webkit.WebView) webView.getView();
                 WebSettings webSettings = androidWebView.getSettings();
 
-                // Aggressively clear all WebView caches BEFORE reload
-                androidWebView.clearCache(true); // Clear cache including disk files
+                // Clear cache to force fresh load from PathHandler
+                androidWebView.clearCache(true);
                 androidWebView.clearHistory();
-                androidWebView.clearFormData();
                 webView.clearCache(true);
                 webView.clearHistory();
-
-                // Disable caching completely to force fresh load
                 webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
-                Log.d(TAG, "WebView cache, history and form data cleared");
+                // Always use https://localhost/ - PathHandler serves from files/www
+                String hostname = preferences.getString("hostname", "localhost");
+                String reloadUrl = "https://" + hostname + "/" + INDEX_HTML;
 
-                String indexPath = "file://" + wwwPath + "/" + INDEX_HTML;
-                Log.d(TAG, "Reloading WebView with: " + indexPath);
+                Log.d(TAG, "Reloading WebView: " + reloadUrl);
+                webView.loadUrlIntoView(reloadUrl, false);
 
-                // Load new content directly into WebView (like CHCP does)
-                webView.loadUrlIntoView(indexPath, false);
-
-                Log.d(TAG, "WebView reloaded successfully");
             } catch (Exception e) {
                 Log.e(TAG, "Failed to reload WebView: " + e.getMessage());
             }

@@ -1,6 +1,6 @@
 {
   "name": "cordova-plugin-hot-updates",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Frontend-controlled manual hot updates for Cordova iOS and Android apps using WebView Reload approach. Manual updates only, JavaScript controls all decisions. 100% API compatibility between platforms.",
   "main": "www/HotUpdates.js",
   "scripts": {
